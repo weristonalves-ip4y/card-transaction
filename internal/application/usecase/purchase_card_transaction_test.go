@@ -39,7 +39,7 @@ func (r *txRepoSpy) ExistsByIdentifier(identifier string) (bool, error) {
 	return r.existsByIdentifier, nil
 }
 
-func (r *txRepoSpy) GetMonthlySum(cardID int64) (vo.Money, error) {
+func (r *txRepoSpy) GetMonthlySum(cardID string) (vo.Money, error) {
 	return vo.Zero(), nil
 }
 

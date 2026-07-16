@@ -18,7 +18,7 @@ type CardRepository interface {
 
 type TransactionRepository interface {
 	ExistsByIdentifier(identifier string) (bool, error)
-	GetMonthlySum(cardID int64) (vo.Money, error)
+	GetMonthlySum(cardID string) (vo.Money, error)
 	SaveSerialized(payload map[string]any) (int64, error)
 }
 

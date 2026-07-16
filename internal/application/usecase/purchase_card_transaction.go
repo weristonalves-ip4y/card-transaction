@@ -74,7 +74,7 @@ func (a PurchaseCardTransaction) Execute(input dto.AuthorizePurchaseRequest) (Pu
 		return output, nil
 	}
 
-	monthlySum, err := a.txRepo.GetMonthlySum(c.AccountID)
+	monthlySum, err := a.txRepo.GetMonthlySum(c.CardID)
 	if err != nil {
 		_, _ = persistSerializedTransaction(a.txRepo, tx, "96")
 		return PurchaseOutput{}, fmt.Errorf("loading monthly sum: %w", err)

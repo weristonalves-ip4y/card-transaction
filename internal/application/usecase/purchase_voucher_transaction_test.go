@@ -17,7 +17,7 @@ func (r *voucherTxRepoSpy) ExistsByIdentifier(identifier string) (bool, error) {
 	return r.existsByIdentifier, nil
 }
 
-func (r *voucherTxRepoSpy) GetMonthlySum(cardID int64) (vo.Money, error) {
+func (r *voucherTxRepoSpy) GetMonthlySum(cardID string) (vo.Money, error) {
 	return vo.Zero(), nil
 }
 
@@ -109,7 +109,7 @@ func (r *voucherTxRepoSpyWithError) ExistsByIdentifier(identifier string) (bool,
 	return false, assertErr{}
 }
 
-func (r *voucherTxRepoSpyWithError) GetMonthlySum(cardID int64) (vo.Money, error) {
+func (r *voucherTxRepoSpyWithError) GetMonthlySum(cardID string) (vo.Money, error) {
 	return vo.Zero(), nil
 }
 

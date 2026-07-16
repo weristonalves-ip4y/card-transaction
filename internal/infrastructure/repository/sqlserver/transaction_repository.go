@@ -39,31 +39,27 @@ func (r TransactionRepository) ExistsByIdentifier(identifier string) (bool, erro
 	return found == 1, nil
 }
 
-func (r TransactionRepository) GetMonthlySum(accountID int64) (vo.Money, error) {
+func (r TransactionRepository) GetMonthlySum(cardID string) (vo.Money, error) {
+
 	const query = `
-		SELECT ISNULL(SUM(request_transaction_amount_local), 0)
-		FROM transaction_purchases
-		WHERE account_id = @accountID
-			AND purchase_id IS NOT NULL
-			AND response_code = '00'
-			AND deleted_at IS NULL
-			AND created_at >= DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1)
-	`
+		SELECT transaction_value
+		FROM fn_get_sum_month_card_transaction(@cardID)
+		`
 
 	var rawSum any
-	err := r.db.QueryRowContext(context.Background(), query, sql.Named("accountID", accountID)).Scan(&rawSum)
+	err := r.db.QueryRowContext(context.Background(), query, sql.Named("cardID", cardID)).Scan(&rawSum)
 	if err != nil {
-		return vo.Money{}, fmt.Errorf("querying monthly sum for account %d: %w", accountID, err)
+		return vo.Money{}, fmt.Errorf("querying monthly sum for card %s: %w", cardID, err)
 	}
 
 	cents, err := convertDBBalanceToCents(rawSum)
 	if err != nil {
-		return vo.Money{}, fmt.Errorf("parsing monthly sum for account %d: %w", accountID, err)
+		return vo.Money{}, fmt.Errorf("parsing monthly sum for card %s: %w", cardID, err)
 	}
 
 	total, err := vo.NewFromCents(cents)
 	if err != nil {
-		return vo.Money{}, fmt.Errorf("invalid monthly sum for account %d: %w", accountID, err)
+		return vo.Money{}, fmt.Errorf("invalid monthly sum for card %s: %w", cardID, err)
 	}
 
 	return total, nil
@@ -342,6 +338,12 @@ func getNullableString(m map[string]any, key string) any {
 	value, ok := m[key]
 	if !ok || value == nil {
 		return nil
+	}
+	if strPtr, ok := value.(*string); ok {
+		if strPtr == nil || *strPtr == "" {
+			return nil
+		}
+		return *strPtr
 	}
 	if str, ok := value.(string); ok {
 		if str == "" {

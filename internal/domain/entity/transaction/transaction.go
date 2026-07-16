@@ -184,7 +184,7 @@ type AuthorizeData struct {
 	ProcessingCode               ProcessingCode
 	Authorization                AuthorizationData
 	Establishment                EstablishmentData
-	ResolvedCardID               int64
+	ResolvedCardID               string
 	ResolvedProductCode          string
 }
 
@@ -246,7 +246,7 @@ func (t Transaction) WithAuthorizeData(data AuthorizeData) Transaction {
 
 func (t Transaction) WithResolvedCard(cardID string, productCode string) Transaction {
 	t.CardID = &cardID
-	t.Data.ResolvedCardID = 0 // Assuming ResolvedCardID is int64, set to 0 or handle accordingly
+	t.Data.ResolvedCardID = cardID
 	t.Data.ResolvedProductCode = productCode
 	return t
 }
@@ -271,7 +271,7 @@ func (t Transaction) WithPersistenceBase(uuid string, cardExternalID string, pur
 func (t Transaction) WithResolvedAccountCard(accountID int64, cardID string) Transaction {
 	t.AccountID = &accountID
 	t.CardID = &cardID
-	t.Data.ResolvedCardID = 0 // Assuming ResolvedCardID is int64, set to 0 or handle accordingly
+	t.Data.ResolvedCardID = cardID
 	return t
 }
 
@@ -328,7 +328,7 @@ func (t Transaction) ToPersistenceMap() map[string]any {
 		"request_card_number":     stringOrNil(req.DE002),
 		"request_processing_code": stringOrNil(req.DE003),
 		"request_transaction_amount_local_original":      t.Data.Amount.Total.Cents(),
-		"request_transaction_amount_local":               t.Data.Amount.Total.Cents(),
+		"request_transaction_amount_local":               t.Data.Amount.Total.ToFloat(),
 		"request_transaction_amount_referencia":          parseISOAmount(req.DE005),
 		"request_amount_in_card_holder_billing":          parseISOAmount(req.DE006),
 		"request_transmition_date_and_time":              stringOrNil(req.DE007),
