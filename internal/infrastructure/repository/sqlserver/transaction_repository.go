@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -49,10 +50,15 @@ func (r TransactionRepository) GetMonthlySum(accountID int64) (vo.Money, error) 
 			AND created_at >= DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1)
 	`
 
-	var cents int64
-	err := r.db.QueryRowContext(context.Background(), query, sql.Named("accountID", accountID)).Scan(&cents)
+	var rawSum any
+	err := r.db.QueryRowContext(context.Background(), query, sql.Named("accountID", accountID)).Scan(&rawSum)
 	if err != nil {
 		return vo.Money{}, fmt.Errorf("querying monthly sum for account %d: %w", accountID, err)
+	}
+
+	cents, err := convertDBBalanceToCents(rawSum)
+	if err != nil {
+		return vo.Money{}, fmt.Errorf("parsing monthly sum for account %d: %w", accountID, err)
 	}
 
 	total, err := vo.NewFromCents(cents)
@@ -234,78 +240,78 @@ func (r TransactionRepository) SaveSerialized(payload map[string]any) (int64, er
 		query,
 		sql.Named("uuid", getString(payload, "uuid")),
 		sql.Named("accountID", getNullableInt64(payload, "account_id")),
-		sql.Named("cardID", getNullableInt64(payload, "card_id")),
+		sql.Named("cardID", getNullableString(payload, "card_id")),
 		sql.Named("transferID", getNullableString(payload, "transfer_id")),
 		sql.Named("withdrawalID", getNullableString(payload, "withdrawal_id")),
 		sql.Named("purchaseID", getNullableString(payload, "purchase_id")),
 		sql.Named("requestMTI", getString(payload, "request_mti")),
-		sql.Named("requestCardNumber", getString(payload, "request_card_number")),
-		sql.Named("requestProcessingCode", getString(payload, "request_processing_code")),
+		sql.Named("requestCardNumber", getNullableString(payload, "request_card_number")),
+		sql.Named("requestProcessingCode", getNullableString(payload, "request_processing_code")),
 		sql.Named("requestAmountLocalOriginal", getInt64(payload, "request_transaction_amount_local_original")),
-		sql.Named("requestAmountLocal", getInt64(payload, "request_transaction_amount_local")),
+		sql.Named("requestAmountLocal", getFloat64(payload, "request_transaction_amount_local")),
 		sql.Named("requestAmountReferencia", getInt64(payload, "request_transaction_amount_referencia")),
 		sql.Named("requestAmountBilling", getInt64(payload, "request_amount_in_card_holder_billing")),
 		sql.Named("requestTransmissionDateTime", now),
-		sql.Named("requestConversionRate", getFloat64(payload, "request_convertion_rate_card_holder_billing")),
-		sql.Named("requestSTAN", getString(payload, "request_system_trace_audit_number")),
-		sql.Named("requestLocalTime", getString(payload, "request_local_transaction_time")),
-		sql.Named("requestLocalDate", getString(payload, "request_local_transaction_date")),
-		sql.Named("requestExpirationDate", getString(payload, "request_expiration_date")),
-		sql.Named("requestMCC", getString(payload, "request_mcc")),
-		sql.Named("requestCountryCode", getString(payload, "request_acquiring_institution_country_code")),
-		sql.Named("requestPOSEntryMode", getString(payload, "request_pos_entry_mode")),
-		sql.Named("requestPOSConditionCode", getString(payload, "request_pos_condition_code")),
-		sql.Named("requestAquiringInstitutionCode", getString(payload, "request_aquiring_institution_code")),
-		sql.Named("requestRetrievalRef", getString(payload, "request_retrieval_reference_number")),
-		sql.Named("requestAuthorizationResponseCode", getString(payload, "request_authorization_response_code")),
-		sql.Named("requestAcceptorTerminal", getString(payload, "request_card_acceptor_terminal")),
-		sql.Named("requestAcceptorIdentificationCode", getString(payload, "request_card_acceptor_identification_code")),
-		sql.Named("requestAcceptorNameLocation", getString(payload, "request_card_acceptor_name_location")),
+		sql.Named("requestConversionRate", getNullableInt64(payload, "request_convertion_rate_card_holder_billing")),
+		sql.Named("requestSTAN", getNullableString(payload, "request_system_trace_audit_number")),
+		sql.Named("requestLocalTime", getNullableString(payload, "request_local_transaction_time")),
+		sql.Named("requestLocalDate", getNullableString(payload, "request_local_transaction_date")),
+		sql.Named("requestExpirationDate", getNullableString(payload, "request_expiration_date")),
+		sql.Named("requestMCC", getNullableString(payload, "request_mcc")),
+		sql.Named("requestCountryCode", getNullableString(payload, "request_acquiring_institution_country_code")),
+		sql.Named("requestPOSEntryMode", getNullableString(payload, "request_pos_entry_mode")),
+		sql.Named("requestPOSConditionCode", getNullableString(payload, "request_pos_condition_code")),
+		sql.Named("requestAquiringInstitutionCode", getNullableString(payload, "request_aquiring_institution_code")),
+		sql.Named("requestRetrievalRef", getNullableString(payload, "request_retrieval_reference_number")),
+		sql.Named("requestAuthorizationResponseCode", getNullableString(payload, "request_authorization_response_code")),
+		sql.Named("requestAcceptorTerminal", getNullableString(payload, "request_card_acceptor_terminal")),
+		sql.Named("requestAcceptorIdentificationCode", getNullableString(payload, "request_card_acceptor_identification_code")),
+		sql.Named("requestAcceptorNameLocation", getNullableString(payload, "request_card_acceptor_name_location")),
 		sql.Named("requestContainsPDS", getBool(payload, "request_contains_pds_in_ltv_format")),
-		sql.Named("requestTransactionCurrencyCode", getString(payload, "request_transaction_currency_code")),
+		sql.Named("requestTransactionCurrencyCode", getNullableString(payload, "request_transaction_currency_code")),
 		sql.Named("requestTransactionAmount", getInt64(payload, "request_transaction_amount")),
-		sql.Named("requestCurrencyCodeBilling", getString(payload, "request_currency_code_cardholder_billing")),
+		sql.Named("requestCurrencyCodeBilling", getNullableString(payload, "request_currency_code_cardholder_billing")),
 		sql.Named("responseMTI", getString(payload, "response_mti")),
-		sql.Named("responseCardNumber", getString(payload, "response_card_number")),
-		sql.Named("responseProcessingCode", getString(payload, "response_processing_code")),
+		sql.Named("responseCardNumber", getNullableString(payload, "response_card_number")),
+		sql.Named("responseProcessingCode", getNullableString(payload, "response_processing_code")),
 		sql.Named("responseAmountLocal", getInt64(payload, "response_transaction_amount_local")),
 		sql.Named("responseAmountBilling", getInt64(payload, "response_amount_in_card_holder_billing")),
 		sql.Named("responseTransmissionDateTime", now),
-		sql.Named("responseConversionRate", getFloat64(payload, "response_conversion_rate")),
-		sql.Named("responseSTAN", getString(payload, "response_system_trace_audit_number")),
-		sql.Named("responseCountryCode", getString(payload, "response_acquiring_institution_country_code")),
-		sql.Named("responsePOSConditionCode", getString(payload, "response_pos_condition_code")),
-		sql.Named("responseAquiringInstitutionCode", getString(payload, "response_aquiring_institution_code")),
-		sql.Named("responseRetrievalRef", getString(payload, "response_retrieval_reference_number")),
+		sql.Named("responseConversionRate", getNullableInt64(payload, "response_conversion_rate")),
+		sql.Named("responseSTAN", getNullableString(payload, "response_system_trace_audit_number")),
+		sql.Named("responseCountryCode", getNullableString(payload, "response_acquiring_institution_country_code")),
+		sql.Named("responsePOSConditionCode", getNullableString(payload, "response_pos_condition_code")),
+		sql.Named("responseAquiringInstitutionCode", getNullableString(payload, "response_aquiring_institution_code")),
+		sql.Named("responseRetrievalRef", getNullableString(payload, "response_retrieval_reference_number")),
 		sql.Named("responseAuthorizationID", getNullableString(payload, "response_authorization_identification_response")),
 		sql.Named("responseCode", getString(payload, "response_code")),
-		sql.Named("responseAcceptorTerminal", getString(payload, "response_card_acceptor_terminal")),
-		sql.Named("responseAcceptorIdentificationCode", getString(payload, "response_card_acceptor_identification_code")),
-		sql.Named("responseAcceptorNameLocation", getString(payload, "response_card_acceptor_name_location")),
-		sql.Named("responseTransactionCurrencyCode", getString(payload, "response_transaction_currency_code")),
-		sql.Named("responseCurrencyCodeBilling", getString(payload, "response_currency_code_cardholder_billing")),
+		sql.Named("responseAcceptorTerminal", getNullableString(payload, "response_card_acceptor_terminal")),
+		sql.Named("responseAcceptorIdentificationCode", getNullableString(payload, "response_card_acceptor_identification_code")),
+		sql.Named("responseAcceptorNameLocation", getNullableString(payload, "response_card_acceptor_name_location")),
+		sql.Named("responseTransactionCurrencyCode", getNullableString(payload, "response_transaction_currency_code")),
+		sql.Named("responseCurrencyCodeBilling", getNullableString(payload, "response_currency_code_cardholder_billing")),
 		sql.Named("transactionJustification", ""),
 		sql.Named("transactionJustificationApproved", false),
-		sql.Named("transferDataPaymentType", ""),
-		sql.Named("transferDataUniqueReferenceNumber", ""),
-		sql.Named("transferDataSendersName", ""),
-		sql.Named("transferDataSendersAddress", ""),
-		sql.Named("transferDataSendersCity", ""),
-		sql.Named("transferDataSendersCountryStateCodeIfUS", ""),
-		sql.Named("transferDataCardholderZipcode", ""),
-		sql.Named("transferDataCardholderIdentificationNumber", ""),
-		sql.Named("transferDataOriginOfFunds", ""),
-		sql.Named("transferDataAdditionalTransferData", ""),
-		sql.Named("transferDataRecipientCode", ""),
-		sql.Named("transferDataFundSenderEmail", ""),
-		sql.Named("transferDataFundRecipientEmail", ""),
-		sql.Named("transferDataFundSenderPhone", ""),
-		sql.Named("transferDataFundRecipientPhone", ""),
-		sql.Named("transferDataDeviceID", ""),
-		sql.Named("transferDataCardholderCpfOrCnpj", ""),
-		sql.Named("transferDataBinOrigin", ""),
-		sql.Named("transferDataOriginCardLast4Digits", ""),
-		sql.Named("transferDataTransactionType", ""),
+		sql.Named("transferDataPaymentType", nil),
+		sql.Named("transferDataUniqueReferenceNumber", nil),
+		sql.Named("transferDataSendersName", nil),
+		sql.Named("transferDataSendersAddress", nil),
+		sql.Named("transferDataSendersCity", nil),
+		sql.Named("transferDataSendersCountryStateCodeIfUS", nil),
+		sql.Named("transferDataCardholderZipcode", nil),
+		sql.Named("transferDataCardholderIdentificationNumber", nil),
+		sql.Named("transferDataOriginOfFunds", nil),
+		sql.Named("transferDataAdditionalTransferData", nil),
+		sql.Named("transferDataRecipientCode", nil),
+		sql.Named("transferDataFundSenderEmail", nil),
+		sql.Named("transferDataFundRecipientEmail", nil),
+		sql.Named("transferDataFundSenderPhone", nil),
+		sql.Named("transferDataFundRecipientPhone", nil),
+		sql.Named("transferDataDeviceID", nil),
+		sql.Named("transferDataCardholderCpfOrCnpj", nil),
+		sql.Named("transferDataBinOrigin", nil),
+		sql.Named("transferDataOriginCardLast4Digits", nil),
+		sql.Named("transferDataTransactionType", nil),
 		sql.Named("pat", getNullableBool(payload, "pat")),
 		sql.Named("createdAt", now),
 		sql.Named("updatedAt", now),
@@ -368,10 +374,14 @@ func getNullableInt64(m map[string]any, key string) any {
 		return int64(typed)
 	case string:
 		parsed, err := strconv.ParseInt(strings.TrimSpace(typed), 10, 64)
+		if err == nil {
+			return parsed
+		}
+		parsedFloat, err := strconv.ParseFloat(strings.TrimSpace(typed), 64)
 		if err != nil {
 			return nil
 		}
-		return parsed
+		return int64(math.Round(parsedFloat))
 	default:
 		return nil
 	}

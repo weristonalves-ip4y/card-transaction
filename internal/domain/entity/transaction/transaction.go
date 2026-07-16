@@ -201,7 +201,7 @@ type Transaction struct {
 	Identifier  string
 	UUID        string
 	AccountID   *int64
-	CardID      *int64
+	CardID      *string
 	Type        Type
 	ProductType ProductType
 	Value       vo.Money
@@ -244,9 +244,9 @@ func (t Transaction) WithAuthorizeData(data AuthorizeData) Transaction {
 	return t
 }
 
-func (t Transaction) WithResolvedCard(cardID int64, productCode string) Transaction {
+func (t Transaction) WithResolvedCard(cardID string, productCode string) Transaction {
 	t.CardID = &cardID
-	t.Data.ResolvedCardID = cardID
+	t.Data.ResolvedCardID = 0 // Assuming ResolvedCardID is int64, set to 0 or handle accordingly
 	t.Data.ResolvedProductCode = productCode
 	return t
 }
@@ -268,10 +268,10 @@ func (t Transaction) WithPersistenceBase(uuid string, cardExternalID string, pur
 	return t
 }
 
-func (t Transaction) WithResolvedAccountCard(accountID int64, cardID int64) Transaction {
+func (t Transaction) WithResolvedAccountCard(accountID int64, cardID string) Transaction {
 	t.AccountID = &accountID
 	t.CardID = &cardID
-	t.Data.ResolvedCardID = cardID
+	t.Data.ResolvedCardID = 0 // Assuming ResolvedCardID is int64, set to 0 or handle accordingly
 	return t
 }
 

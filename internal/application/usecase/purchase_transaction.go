@@ -26,6 +26,10 @@ type BalanceRepository interface {
 	GetBalance(accountID int64) (vo.Money, error)
 }
 
+type CardMovementRepository interface {
+	InsertDebitMovement(accountID, originID int64, movementTypeID int, amount float64, description string) error
+}
+
 type PurchaseOutput struct {
 	Approved        bool
 	Code            string
@@ -44,9 +48,10 @@ func NewPurchaseTransaction(
 	cardRepo CardRepository,
 	txRepo TransactionRepository,
 	balanceRepo BalanceRepository,
+	movementRepo CardMovementRepository,
 ) PurchaseTransaction {
 	return PurchaseTransaction{
-		cardUseCase:    NewPurchaseCardTransaction(cardRepo, txRepo, balanceRepo),
+		cardUseCase:    NewPurchaseCardTransaction(cardRepo, txRepo, balanceRepo, movementRepo),
 		voucherUseCase: NewPurchaseVoucherTransaction(cardRepo, txRepo, balanceRepo),
 	}
 }

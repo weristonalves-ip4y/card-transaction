@@ -12,6 +12,7 @@ func TestConvertDBBalanceToCents(t *testing.T) {
 		{name: "nil becomes zero", input: nil, want: 0},
 		{name: "int64 cents", input: int64(1234), want: 1234},
 		{name: "float64 units", input: 9655.8, want: 965580},
+		{name: "float64 repeating decimal units", input: 4037.9799999999996, want: 403798},
 		{name: "float32 units", input: float32(10.5), want: 1050},
 		{name: "byte decimal units", input: []byte("9655.8"), want: 965580},
 		{name: "string decimal with comma", input: "9655,8", want: 965580},

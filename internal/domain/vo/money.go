@@ -26,6 +26,10 @@ func Zero() Money {
 	return Money{cents: 0}
 }
 
+func (m Money) ToFloat() float64 {
+	return float64(m.cents) / 100
+}
+
 func (m Money) Cents() int64 {
 	return m.cents
 }

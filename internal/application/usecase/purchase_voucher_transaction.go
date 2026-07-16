@@ -53,8 +53,8 @@ func (a PurchaseVoucherTransaction) Execute(input dto.AuthorizePurchaseRequest) 
 		return output, nil
 	}
 
-	tx = tx.WithResolvedCard(c.ID, c.PsProductCode)
-	tx = tx.WithResolvedAccountCard(c.AccountID, c.ID)
+	tx = tx.WithResolvedCard(c.CardID, c.PsProductCode)
+	tx = tx.WithResolvedAccountCard(c.AccountID, c.CardID)
 
 	if result := card.ValidateProductCompatibility(c, input.PsProductCode); !result.Approved {
 		output := rejectPurchaseByCode(result.Code)

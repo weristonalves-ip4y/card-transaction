@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"fmt"
+	"strings"
 
 	"card-transaction/internal/application/decision"
 	"card-transaction/internal/application/dto"
@@ -12,21 +13,26 @@ import (
 	"github.com/google/uuid"
 )
 
+const cardPurchaseMovementTypeID = 24
+
 type PurchaseCardTransaction struct {
-	cardRepo    CardRepository
-	txRepo      TransactionRepository
-	balanceRepo BalanceRepository
+	cardRepo     CardRepository
+	txRepo       TransactionRepository
+	balanceRepo  BalanceRepository
+	movementRepo CardMovementRepository
 }
 
 func NewPurchaseCardTransaction(
 	cardRepo CardRepository,
 	txRepo TransactionRepository,
 	balanceRepo BalanceRepository,
+	movementRepo CardMovementRepository,
 ) PurchaseCardTransaction {
 	return PurchaseCardTransaction{
-		cardRepo:    cardRepo,
-		txRepo:      txRepo,
-		balanceRepo: balanceRepo,
+		cardRepo:     cardRepo,
+		txRepo:       txRepo,
+		balanceRepo:  balanceRepo,
+		movementRepo: movementRepo,
 	}
 }
 
@@ -59,8 +65,8 @@ func (a PurchaseCardTransaction) Execute(input dto.AuthorizePurchaseRequest) (Pu
 		return output, nil
 	}
 
-	tx = tx.WithResolvedCard(c.ID, c.PsProductCode)
-	tx = tx.WithResolvedAccountCard(c.AccountID, c.ID)
+	tx = tx.WithResolvedCard(c.CardID, c.PsProductCode)
+	tx = tx.WithResolvedAccountCard(c.AccountID, c.CardID)
 
 	if result := card.ValidateProductCompatibility(c, input.PsProductCode); !result.Approved {
 		output := rejectPurchaseByCode(result.Code)
@@ -114,10 +120,37 @@ func (a PurchaseCardTransaction) Execute(input dto.AuthorizePurchaseRequest) (Pu
 	approvedOutput.AuthorizationID = &authorizationID
 	approvedOutput.BalanceAmount = &balanceAmount
 
-	//TODO: Disparar o evento de debitar o valor daconta.
+	movementDescription := buildCardPurchaseMovementDescription(input)
+
+	if err := a.movementRepo.InsertDebitMovement(
+		c.AccountID,
+		authorizationID,
+		cardPurchaseMovementTypeID,
+		amount.ToFloat(),
+		movementDescription,
+	); err != nil {
+		return PurchaseOutput{}, fmt.Errorf("inserting card debit movement: %w", err)
+	}
+
 	//TODO: disparar evento de SMS para o cliente. Transação aprovado
 
 	return approvedOutput, nil
+}
+
+func buildCardPurchaseMovementDescription(input dto.AuthorizePurchaseRequest) string {
+	location := ""
+	if input.OriginalIso8583.RequestCardAcceptorNameLocation != nil {
+		location = strings.TrimSpace(*input.OriginalIso8583.RequestCardAcceptorNameLocation)
+	}
+	if location == "" && input.Establishment.Name != nil {
+		location = strings.TrimSpace(*input.Establishment.Name)
+	}
+
+	if location == "" {
+		return "COMPRA CARTÃO"
+	}
+
+	return "COMPRA CARTÃO | " + strings.ToUpper(location)
 }
 
 func newPurchaseTransactionFromInput(input dto.AuthorizePurchaseRequest) (transaction.Transaction, error) {

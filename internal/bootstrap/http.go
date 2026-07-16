@@ -30,8 +30,12 @@ func NewHTTPHandler() http.Handler {
 	if err != nil {
 		log.Panicf("building sql balance repository: %v", err)
 	}
+	movementRepo, err := sqlserver.NewCardMovementRepository(db)
+	if err != nil {
+		log.Panicf("building sql card movement repository: %v", err)
+	}
 
-	authorizeUseCase := usecase.NewPurchaseTransaction(cardRepo, txRepo, balanceRepo)
+	authorizeUseCase := usecase.NewPurchaseTransaction(cardRepo, txRepo, balanceRepo, movementRepo)
 	authorizeController := controller.NewAuthorizeController(authorizeUseCase)
 	systemStatusController := controller.NewSystemStatusController(controller.DBCheckFunc(func(ctx context.Context) error {
 		if err := db.PingContext(ctx); err != nil {

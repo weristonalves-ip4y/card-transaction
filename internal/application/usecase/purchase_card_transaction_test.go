@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"errors"
 	"testing"
 
 	"card-transaction/internal/application/dto"
@@ -12,6 +13,26 @@ type txRepoSpy struct {
 	existsByIdentifier bool
 	saveCalls          int
 	lastPayload        map[string]any
+}
+
+type movementRepoSpy struct {
+	calls              int
+	lastAccountID      int64
+	lastOriginID       int64
+	lastMovementTypeID int
+	lastAmountCents    float64
+	lastDescription    string
+	err                error
+}
+
+func (s *movementRepoSpy) InsertDebitMovement(accountID, originID int64, movementTypeID int, amount float64, description string) error {
+	s.calls++
+	s.lastAccountID = accountID
+	s.lastOriginID = originID
+	s.lastMovementTypeID = movementTypeID
+	s.lastAmountCents = amount
+	s.lastDescription = description
+	return s.err
 }
 
 func (r *txRepoSpy) ExistsByIdentifier(identifier string) (bool, error) {
@@ -44,7 +65,7 @@ func TestPurchaseCardTransactionExecuteDuplicatePersistsRejectedTransaction(t *t
 	t.Parallel()
 
 	txRepo := &txRepoSpy{existsByIdentifier: true}
-	useCase := NewPurchaseCardTransaction(cardRepoStubForDuplicate{}, txRepo, balanceRepoStubForDuplicate{})
+	useCase := NewPurchaseCardTransaction(cardRepoStubForDuplicate{}, txRepo, balanceRepoStubForDuplicate{}, &movementRepoSpy{})
 
 	output, err := useCase.Execute(validAuthorizePurchaseRequest())
 	if err != nil {
@@ -77,8 +98,116 @@ func TestPurchaseCardTransactionExecuteDuplicatePersistsRejectedTransaction(t *t
 	}
 }
 
+type cardRepoApprovedStub struct{}
+
+func (s cardRepoApprovedStub) FindByPaysmartID(paysmartID string) (card.Card, error) {
+	return card.Card{
+		ID:            11,
+		AccountID:     22,
+		CardID:        paysmartID,
+		CardStatusID:  int(card.StatusActive),
+		PsProductCode: "011202",
+	}, nil
+}
+
+type balanceRepoApprovedStub struct{}
+
+func (s balanceRepoApprovedStub) GetBalance(accountID int64) (vo.Money, error) {
+	return vo.NewFromCents(5000)
+}
+
+func TestPurchaseCardTransactionExecuteApprovedCallsDebitMovement(t *testing.T) {
+	t.Parallel()
+
+	txRepo := &txRepoSpy{existsByIdentifier: false}
+	movementRepo := &movementRepoSpy{}
+	useCase := NewPurchaseCardTransaction(cardRepoApprovedStub{}, txRepo, balanceRepoApprovedStub{}, movementRepo)
+
+	output, err := useCase.Execute(validAuthorizePurchaseRequest())
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+
+	if !output.Approved {
+		t.Fatalf("expected approved output")
+	}
+
+	if output.Code != "00" {
+		t.Fatalf("expected code 00, got %s", output.Code)
+	}
+
+	if txRepo.saveCalls != 1 {
+		t.Fatalf("expected 1 persistence call, got %d", txRepo.saveCalls)
+	}
+
+	responseCode, ok := txRepo.lastPayload["response_code"].(string)
+	if !ok {
+		t.Fatalf("expected response_code field in payload")
+	}
+
+	if responseCode != "00" {
+		t.Fatalf("expected persisted response_code 00, got %s", responseCode)
+	}
+
+	if movementRepo.calls != 1 {
+		t.Fatalf("expected 1 movement call, got %d", movementRepo.calls)
+	}
+
+	if movementRepo.lastAccountID != 22 {
+		t.Fatalf("expected movement account 22, got %d", movementRepo.lastAccountID)
+	}
+
+	if movementRepo.lastOriginID != 1 {
+		t.Fatalf("expected movement origin 1, got %d", movementRepo.lastOriginID)
+	}
+
+	if movementRepo.lastMovementTypeID != cardPurchaseMovementTypeID {
+		t.Fatalf("expected movement type %d, got %d", cardPurchaseMovementTypeID, movementRepo.lastMovementTypeID)
+	}
+
+	if movementRepo.lastAmountCents != 1000 {
+		t.Fatalf("expected movement amount 1000, got %d", movementRepo.lastAmountCents)
+	}
+
+	if movementRepo.lastDescription != "COMPRA CARTÃO | MERCEARIA CENTRO" {
+		t.Fatalf("expected movement description in upper case, got %s", movementRepo.lastDescription)
+	}
+
+}
+
+func TestPurchaseCardTransactionExecuteMovementFailureKeepsApprovedPersistence(t *testing.T) {
+	t.Parallel()
+
+	txRepo := &txRepoSpy{existsByIdentifier: false}
+	movementRepo := &movementRepoSpy{err: errors.New("db down")}
+	useCase := NewPurchaseCardTransaction(cardRepoApprovedStub{}, txRepo, balanceRepoApprovedStub{}, movementRepo)
+
+	_, err := useCase.Execute(validAuthorizePurchaseRequest())
+	if err == nil {
+		t.Fatalf("expected error when movement insert fails")
+	}
+
+	if txRepo.saveCalls != 1 {
+		t.Fatalf("expected 1 persistence call, got %d", txRepo.saveCalls)
+	}
+
+	responseCode, ok := txRepo.lastPayload["response_code"].(string)
+	if !ok {
+		t.Fatalf("expected response_code field in payload")
+	}
+
+	if responseCode != "00" {
+		t.Fatalf("expected persisted response_code 00, got %s", responseCode)
+	}
+
+	if movementRepo.calls != 1 {
+		t.Fatalf("expected 1 movement call, got %d", movementRepo.calls)
+	}
+}
+
 func validAuthorizePurchaseRequest() dto.AuthorizePurchaseRequest {
 	creditCardAccount := "00"
+	location := "Mercearia Centro"
 	return dto.AuthorizePurchaseRequest{
 		PurchaseID:        "tx-duplicate-1",
 		AccountID:         "acc-1",
@@ -115,7 +244,8 @@ func validAuthorizePurchaseRequest() dto.AuthorizePurchaseRequest {
 		},
 		Fees: []dto.FeesInput{},
 		OriginalIso8583: dto.OriginalIso8583{
-			RequestMTI: "0100",
+			RequestMTI:                      "0100",
+			RequestCardAcceptorNameLocation: &location,
 		},
 		Establishment: dto.EstablishmentInput{},
 		ForceAccept:   false,

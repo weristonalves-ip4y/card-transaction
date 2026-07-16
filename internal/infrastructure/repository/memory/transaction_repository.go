@@ -4,14 +4,14 @@ import "card-transaction/internal/domain/vo"
 
 type TransactionRepository struct {
 	duplicates map[string]bool
-	monthlySum map[int64]vo.Money
+	monthlySum map[string]vo.Money
 	serialized []map[string]any
 }
 
 func NewTransactionRepository() *TransactionRepository {
 	return &TransactionRepository{
 		duplicates: map[string]bool{},
-		monthlySum: map[int64]vo.Money{},
+		monthlySum: map[string]vo.Money{},
 		serialized: []map[string]any{},
 	}
 }
@@ -20,7 +20,7 @@ func (r *TransactionRepository) ExistsByIdentifier(identifier string) (bool, err
 	return r.duplicates[identifier], nil
 }
 
-func (r *TransactionRepository) GetMonthlySum(cardID int64) (vo.Money, error) {
+func (r *TransactionRepository) GetMonthlySum(cardID string) (vo.Money, error) {
 	sum, ok := r.monthlySum[cardID]
 	if !ok {
 		return vo.Zero(), nil
