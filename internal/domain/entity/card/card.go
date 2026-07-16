@@ -2,6 +2,7 @@ package card
 
 import (
 	"card-transaction/internal/domain/vo"
+	"time"
 )
 
 type Status int
@@ -14,12 +15,17 @@ const (
 )
 
 type Card struct {
-	ID           string
-	AccountID    string
-	Status       Status
-	ProductCode  string
-	CheckLimit   bool
-	MonthlyLimit vo.Money
+	ID               int64
+	AccountID        int64
+	UUID             string
+	CardID           string
+	CardStatusID     int
+	CardMonthlyLimit vo.Money
+	CardCheckLimit   bool
+	PsProductCode    string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	DeletedAt        *time.Time
 }
 
 type ValidationResult struct {
@@ -37,11 +43,11 @@ func Rejected(code, reason string) ValidationResult {
 }
 
 func (c Card) IsActive() bool {
-	return c.Status == StatusActive
+	return c.CardStatusID == int(StatusActive)
 }
 
 func (c Card) IsBlocked() bool {
-	return c.Status == StatusBlocked
+	return c.CardStatusID == int(StatusBlocked)
 }
 
 /*
@@ -56,11 +62,11 @@ func MonthsLimitExceeded(c Card, monthlySum vo.Money, transactionValue vo.Money,
 		return false
 	}
 
-	if !c.CheckLimit {
+	if !c.CardCheckLimit {
 		return false
 	}
 
-	return monthlySum.Add(transactionValue).GreaterThan(c.MonthlyLimit)
+	return monthlySum.Add(transactionValue).GreaterThan(c.CardMonthlyLimit)
 }
 
 /**
@@ -73,11 +79,11 @@ func ValidateProductCompatibility(c Card, transactionProductCode string) Validat
 
 	isVoucherTx := transactionProductCode == "011401"
 
-	if c.ProductCode == "011401" && !isVoucherTx {
+	if c.PsProductCode == "011401" && !isVoucherTx {
 		return Rejected("06", "product not allowed for this card")
 	}
 
-	if (c.ProductCode == "011202" || c.ProductCode == "") && isVoucherTx {
+	if (c.PsProductCode == "011202" || c.PsProductCode == "") && isVoucherTx {
 		return Rejected("06", "product not allowed for this card")
 	}
 
@@ -85,24 +91,24 @@ func ValidateProductCompatibility(c Card, transactionProductCode string) Validat
 }
 
 func (c Card) IsVoucher() bool {
-	if c.ProductCode == "011401" {
+	if c.PsProductCode == "011401" {
 		return true
 	}
 	return false
 }
 
 func (c Card) IsCard() bool {
-	if c.ProductCode == "011202" || c.ProductCode == "" {
+	if c.PsProductCode == "011202" || c.PsProductCode == "" {
 		return true
 	}
 	return false
 }
 
 func (c Card) HasValidatedAccount() bool {
-	if c.ID == "" {
+	if c.ID == 0 {
 		return false
 	}
-	if c.AccountID == "" {
+	if c.AccountID == 0 {
 		return false
 	}
 	if !c.IsActive() {
@@ -112,10 +118,10 @@ func (c Card) HasValidatedAccount() bool {
 }
 
 func ValidateCard(c Card) ValidationResult {
-	if c.ID == "" {
+	if c.ID == 0 {
 		return Rejected("02", "card not found")
 	}
-	if c.AccountID == "" {
+	if c.AccountID == 0 {
 		return Rejected("02", "card account not found")
 	}
 	if !c.IsActive() {

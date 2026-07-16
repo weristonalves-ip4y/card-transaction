@@ -1,8 +1,6 @@
 package usecase
 
 import (
-	"fmt"
-
 	"card-transaction/internal/application/dto"
 	"card-transaction/internal/domain/entity/card"
 	"card-transaction/internal/domain/vo"
@@ -20,19 +18,21 @@ type CardRepository interface {
 
 type TransactionRepository interface {
 	ExistsByIdentifier(identifier string) (bool, error)
-	GetMonthlySum(cardID string) (vo.Money, error)
-	SaveSerialized(payload map[string]any) error
+	GetMonthlySum(cardID int64) (vo.Money, error)
+	SaveSerialized(payload map[string]any) (int64, error)
 }
 
 type BalanceRepository interface {
-	GetBalance(accountID string) (vo.Money, error)
+	GetBalance(accountID int64) (vo.Money, error)
 }
 
 type PurchaseOutput struct {
-	Approved bool
-	Code     string
-	Message  string
-	Status   int
+	Approved        bool
+	Code            string
+	Message         string
+	Status          int
+	AuthorizationID *int64
+	BalanceAmount   *int64
 }
 
 type PurchaseTransaction struct {
@@ -54,10 +54,8 @@ func NewPurchaseTransaction(
 func (a PurchaseTransaction) Execute(input dto.AuthorizePurchaseRequest) (PurchaseOutput, error) {
 	if input.PsProductCode == "011401" {
 		return a.voucherUseCase.Execute(input)
-	} else if input.PsProductCode == "011402" {
-		return a.cardUseCase.Execute(input)
 	} else {
-		return PurchaseOutput{}, fmt.Errorf("invalid product type: %s", input.PsProductCode)
+		return a.cardUseCase.Execute(input)
 	}
 
 }

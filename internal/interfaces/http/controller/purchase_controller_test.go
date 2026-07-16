@@ -29,11 +29,16 @@ func TestAuthorizeControllerHandleHappyPath(t *testing.T) {
 				t.Fatalf("expected purchase_id tx-1, got %s", input.PurchaseID)
 			}
 
+			authorizationID := int64(2804)
+			balanceAmount := int64(100190)
+
 			return usecase.PurchaseOutput{
-				Approved: true,
-				Code:     "00",
-				Message:  "Operacao realizada com sucesso.",
-				Status:   http.StatusOK,
+				Approved:        true,
+				Code:            "00",
+				Message:         "Operacao realizada com sucesso.",
+				Status:          http.StatusOK,
+				AuthorizationID: &authorizationID,
+				BalanceAmount:   &balanceAmount,
 			}, nil
 		},
 	})
@@ -64,12 +69,21 @@ func TestAuthorizeControllerHandleHappyPath(t *testing.T) {
 		t.Fatalf("expected code 0, got %v", response["code"])
 	}
 
-	if _, ok := response["balance"]; !ok {
-		t.Fatalf("expected balance in response")
+	balance, ok := response["balance"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected balance object in response")
 	}
 
-	if _, ok := response["authorization_id"]; !ok {
-		t.Fatalf("expected authorization_id in response")
+	if response["authorization_id"] != float64(2804) {
+		t.Fatalf("expected authorization_id 2804, got %v", response["authorization_id"])
+	}
+
+	if balance["amount"] != float64(100190) {
+		t.Fatalf("expected balance.amount 100190, got %v", balance["amount"])
+	}
+
+	if balance["currency_code"] != "986" {
+		t.Fatalf("expected balance.currency_code 986, got %v", balance["currency_code"])
 	}
 
 	if _, ok := response["purchaseOnlyApproval"]; !ok {
@@ -203,6 +217,61 @@ func TestAuthorizeControllerHandleValidationError(t *testing.T) {
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected status 400, got %d", rec.Code)
+	}
+}
+
+func TestAuthorizeControllerHandleIncomingDenialSkipsUseCase(t *testing.T) {
+	t.Parallel()
+
+	called := false
+	controller := NewAuthorizeController(authorizerStub{
+		executeFn: func(input dto.AuthorizePurchaseRequest) (usecase.PurchaseOutput, error) {
+			called = true
+			return usecase.PurchaseOutput{}, nil
+		},
+	})
+
+	body := map[string]any{}
+	if err := json.Unmarshal(validPurchaseRequestJSON(t, false), &body); err != nil {
+		t.Fatalf("failed to unmarshal valid request body: %v", err)
+	}
+
+	authorization, ok := body["authorization"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected authorization object")
+	}
+	authorization["code"] = "05"
+	authorization["description"] = "negado pelo autorizador"
+
+	encoded, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("failed to marshal denial request body: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/purchases", bytes.NewBuffer(encoded))
+	rec := httptest.NewRecorder()
+
+	controller.Handle(rec, req)
+
+	if rec.Code != 499 {
+		t.Fatalf("expected status 499, got %d", rec.Code)
+	}
+
+	if called {
+		t.Fatalf("expected authorizer not to be called")
+	}
+
+	var response map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("expected valid response json, got error: %v", err)
+	}
+
+	if response["authorization_code"] != "05" {
+		t.Fatalf("expected authorization_code 05, got %v", response["authorization_code"])
+	}
+
+	if response["message"] != "negado pelo autorizador" {
+		t.Fatalf("expected denial message, got %v", response["message"])
 	}
 }
 

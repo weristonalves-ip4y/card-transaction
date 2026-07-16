@@ -4,3 +4,5 @@
 bin/
 dist/
 coverage/
+github/
+docs/

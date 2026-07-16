@@ -75,6 +75,13 @@ func (c AuthorizeController) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.Authorization.Code != "00" {
+		log.Printf("purchase request denied before usecase: method=%s path=%s purchase_id=%s account_id=%s authorization_code=%s", r.Method, r.URL.Path, req.PurchaseID, req.AccountID, req.Authorization.Code)
+		response := dto.PurchaseOutputFromIncomingDenial(req.Authorization.Code, req.Authorization.Description)
+		writeJSON(w, response.StatusCode, response.Data)
+		return
+	}
+
 	output, err := c.authorizer.Execute(req)
 	if err != nil {
 		log.Printf("purchase request usecase error: method=%s path=%s purchase_id=%s account_id=%s err=%v", r.Method, r.URL.Path, req.PurchaseID, req.AccountID, err)
@@ -87,6 +94,17 @@ func (c AuthorizeController) Handle(w http.ResponseWriter, r *http.Request) {
 	log.Printf("purchase request completed: method=%s path=%s purchase_id=%s account_id=%s approved=%t code=%s status=%d", r.Method, r.URL.Path, req.PurchaseID, req.AccountID, output.Approved, output.Code, output.Status)
 
 	response := dto.PurchaseOutputFromAuthorizationCode(output.Code, output.Message)
+	if output.AuthorizationID != nil {
+		response.Data["authorization_id"] = *output.AuthorizationID
+	}
+
+	if output.BalanceAmount != nil {
+		response.Data["balance"] = map[string]any{
+			"amount":        *output.BalanceAmount,
+			"currency_code": "986",
+		}
+	}
+
 	writeJSON(w, response.StatusCode, response.Data)
 }
 

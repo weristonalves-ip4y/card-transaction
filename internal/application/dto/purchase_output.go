@@ -47,6 +47,23 @@ func PurchaseOutputFromAuthorizationCode(code string, message string) PurchaseOu
 	return PurchaseOutput{StatusCode: spec.HTTPStatus, Data: data}
 }
 
+func PurchaseOutputFromIncomingDenial(code string, message string) PurchaseOutput {
+	if code == "" {
+		code = "96"
+	}
+	if message == "" {
+		message = "Negacao recebida do autorizador."
+	}
+
+	return PurchaseOutput{
+		StatusCode: 499,
+		Data: map[string]any{
+			"message":            message,
+			"authorization_code": code,
+		},
+	}
+}
+
 type purchaseOutputSpec struct {
 	HTTPStatus             int
 	Code                   int

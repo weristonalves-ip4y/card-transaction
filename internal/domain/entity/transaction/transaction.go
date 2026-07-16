@@ -184,7 +184,7 @@ type AuthorizeData struct {
 	ProcessingCode               ProcessingCode
 	Authorization                AuthorizationData
 	Establishment                EstablishmentData
-	ResolvedCardID               string
+	ResolvedCardID               int64
 	ResolvedProductCode          string
 }
 
@@ -200,8 +200,8 @@ type Transaction struct {
 	ID          string
 	Identifier  string
 	UUID        string
-	AccountID   string
-	CardID      string
+	AccountID   *int64
+	CardID      *int64
 	Type        Type
 	ProductType ProductType
 	Value       vo.Money
@@ -212,7 +212,6 @@ type Transaction struct {
 
 func New(
 	identifier string,
-	accountID string,
 	txType Type,
 	productType ProductType,
 	value vo.Money,
@@ -221,7 +220,6 @@ func New(
 	return Transaction{
 		ID:          identifier,
 		Identifier:  identifier,
-		AccountID:   accountID,
 		Type:        txType,
 		ProductType: productType,
 		Value:       value,
@@ -246,8 +244,8 @@ func (t Transaction) WithAuthorizeData(data AuthorizeData) Transaction {
 	return t
 }
 
-func (t Transaction) WithResolvedCard(cardID string, productCode string) Transaction {
-	t.CardID = cardID
+func (t Transaction) WithResolvedCard(cardID int64, productCode string) Transaction {
+	t.CardID = &cardID
 	t.Data.ResolvedCardID = cardID
 	t.Data.ResolvedProductCode = productCode
 	return t
@@ -270,9 +268,9 @@ func (t Transaction) WithPersistenceBase(uuid string, cardExternalID string, pur
 	return t
 }
 
-func (t Transaction) WithResolvedAccountCard(accountID string, cardID string) Transaction {
-	t.AccountID = accountID
-	t.CardID = cardID
+func (t Transaction) WithResolvedAccountCard(accountID int64, cardID int64) Transaction {
+	t.AccountID = &accountID
+	t.CardID = &cardID
 	t.Data.ResolvedCardID = cardID
 	return t
 }
@@ -288,7 +286,7 @@ func (t Transaction) BuildISOResponse(responseCode string) Transaction {
 	t.Response = AuthorizationResponse{
 		Code: responseCode,
 		ISO: ISOResponse{
-			MTI:                                 "0110",
+			MTI:                                 "0110", //TODO: Quando for WithDrawal, o MTI deve ser 0210
 			CardNumber:                          stringOrEmpty(request.DE002),
 			ProcessingCode:                      stringOrEmpty(request.DE003),
 			TransactionAmountLocal:              t.Data.Amount.Total.Cents(),

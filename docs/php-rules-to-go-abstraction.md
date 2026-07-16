@@ -211,3 +211,28 @@ Impacto esperado:
 
 Proximo passo orientado a performance:
 - Criar um adapter de repositorio com query consolidada para carregar snapshot de validacao (card, limite mensal agregado, saldo) em 1 chamada quando fizer sentido operacional.
+
+## Regra de negocio aplicada neste cenario (compra)
+
+### Fluxo geral
+1. Recebe a requisicao.
+2. Faz validacoes de negocio: cartao, produto, duplicidade, limite, saldo e transacao original.
+3. Persiste a transacao com request + response_code.
+4. Monta a resposta conforme o codigo de autorizacao.
+5. Se aprovado, no futuro lanca debito em conta e envio de SMS.
+
+### Excecao antes do service (controller)
+1. Se `authorization.code` da entrada for diferente de `00`, a API retorna HTTP `499` com mensagem de negacao recebida.
+2. Nesse caso, nao entra no fluxo do service e nao persiste nessa camada.
+
+### Compra
+1. Natureza financeira: debito.
+2. Validacoes obrigatorias: duplicidade, cartao, compatibilidade de produto, limite mensal e saldo.
+3. Codigo `00`: aprovada, persiste e retorna `authorization_id` e `balance`.
+4. Codigo `01`: saldo insuficiente, persiste e retorna `balance`.
+5. Codigos `02`, `04`, `05`, `06`, `07`, `08`, `09`, `10`, `14`, `60`, `96`: persiste e retorna erro conforme mapeamento.
+6. Regra de retorno de saldo na compra: retornar `balance` para codigos `00`, `01` e `03`.
+
+### Observacoes de implementacao
+- O valor de saldo deve seguir a regra transacional ja definida neste documento (valor total da transacao).
+- A excecao de `authorization.code != 00` deve permanecer no controller para evitar persistencia indevida no service.

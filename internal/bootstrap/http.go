@@ -3,36 +3,37 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/http"
 
 	"card-transaction/internal/application/usecase"
 	"card-transaction/internal/infrastructure/database"
-	"card-transaction/internal/infrastructure/repository/memory"
+	"card-transaction/internal/infrastructure/repository/sqlserver"
 	"card-transaction/internal/interfaces/http/controller"
 	"card-transaction/internal/interfaces/http/router"
 )
 
 func NewHTTPHandler() http.Handler {
-	cardRepo := memory.NewCardRepository()
-	txRepo := memory.NewTransactionRepository()
-	balanceRepo := memory.NewBalanceRepository()
+	cfg, err := database.LoadConfigFromEnv()
+	if err != nil {
+		log.Panicf("loading db config: %v", err)
+	}
+
+	db, err := database.ConnectSQLServer(cfg)
+	if err != nil {
+		log.Panicf("connecting to db: %v", err)
+	}
+
+	cardRepo := sqlserver.NewCardRepository(db)
+	txRepo := sqlserver.NewTransactionRepository(db)
+	balanceRepo, err := sqlserver.NewBalanceRepository(db)
+	if err != nil {
+		log.Panicf("building sql balance repository: %v", err)
+	}
 
 	authorizeUseCase := usecase.NewPurchaseTransaction(cardRepo, txRepo, balanceRepo)
 	authorizeController := controller.NewAuthorizeController(authorizeUseCase)
 	systemStatusController := controller.NewSystemStatusController(controller.DBCheckFunc(func(ctx context.Context) error {
-		cfg, err := database.LoadConfigFromEnv()
-		if err != nil {
-			return fmt.Errorf("loading db config: %w", err)
-		}
-
-		db, err := database.ConnectSQLServer(cfg)
-		if err != nil {
-			return fmt.Errorf("connecting to db: %w", err)
-		}
-		defer func() {
-			_ = db.Close()
-		}()
-
 		if err := db.PingContext(ctx); err != nil {
 			return fmt.Errorf("pinging db: %w", err)
 		}
