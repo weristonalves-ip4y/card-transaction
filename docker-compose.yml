@@ -1,0 +1,16 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    image: card-transaction:local
+    container_name: card-transaction
+    env_file:
+      - .env
+    command: go run ./cmd/main.go
+    volumes:
+      - .:/app
+    ports:
+      - "${PORT:-8080}:${PORT:-8080}"
+    restart: unless-stopped
