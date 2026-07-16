@@ -35,7 +35,7 @@ func (s voucherCardRepoStub) FindByPaysmartID(paysmartID string) (card.Card, err
 
 type voucherBalanceRepoStub struct{}
 
-func (s voucherBalanceRepoStub) GetBalance(accountID int64) (vo.Money, error) {
+func (s voucherBalanceRepoStub) GetBalanceVoucher(accountID int64) (vo.Money, error) {
 	return vo.Zero(), nil
 }
 
@@ -43,7 +43,7 @@ func TestPurchaseVoucherTransactionExecuteDuplicatePersistsRejectedTransaction(t
 	t.Parallel()
 
 	txRepo := &voucherTxRepoSpy{existsByIdentifier: true}
-	useCase := NewPurchaseVoucherTransaction(voucherCardRepoStub{}, txRepo, voucherBalanceRepoStub{})
+	useCase := NewPurchaseVoucherTransaction(voucherCardRepoStub{}, txRepo, voucherBalanceRepoStub{}, &voucherMovementRepoSpy{})
 
 	input := validAuthorizePurchaseRequest()
 	input.PsProductCode = "011401"
@@ -79,7 +79,7 @@ func TestPurchaseVoucherTransactionExecuteDuplicateRepositoryErrorPersists96(t *
 	t.Parallel()
 
 	txRepo := &voucherTxRepoSpyWithError{}
-	useCase := NewPurchaseVoucherTransaction(voucherCardRepoStub{}, txRepo, voucherBalanceRepoStub{})
+	useCase := NewPurchaseVoucherTransaction(voucherCardRepoStub{}, txRepo, voucherBalanceRepoStub{}, &voucherMovementRepoSpy{})
 
 	_, err := useCase.Execute(validAuthorizePurchaseRequest())
 	if err == nil {
@@ -126,6 +126,7 @@ func (e assertErr) Error() string { return "repository failure" }
 var _ error = assertErr{}
 
 var _ CardRepository = voucherCardRepoStub{}
-var _ BalanceRepository = voucherBalanceRepoStub{}
+var _ BalanceVoucherRepository = voucherBalanceRepoStub{}
+var _ CardVoucherMovementRepository = &voucherMovementRepoSpy{}
 var _ TransactionRepository = (*voucherTxRepoSpy)(nil)
 var _ TransactionRepository = (*voucherTxRepoSpyWithError)(nil)

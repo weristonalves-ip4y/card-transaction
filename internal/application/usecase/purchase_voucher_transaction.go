@@ -4,23 +4,27 @@ import (
 	"card-transaction/internal/application/dto"
 	"card-transaction/internal/domain/entity/card"
 	"fmt"
+	"strings"
 )
 
 type PurchaseVoucherTransaction struct {
-	cardRepo    CardRepository
-	txRepo      TransactionRepository
-	balanceRepo BalanceRepository
+	cardRepo     CardRepository
+	txRepo       TransactionRepository
+	balanceRepo  BalanceVoucherRepository
+	movementRepo CardVoucherMovementRepository
 }
 
 func NewPurchaseVoucherTransaction(
 	cardRepo CardRepository,
 	txRepo TransactionRepository,
-	balanceRepo BalanceRepository,
+	balanceRepo BalanceVoucherRepository,
+	movementRepo CardVoucherMovementRepository,
 ) PurchaseVoucherTransaction {
 	return PurchaseVoucherTransaction{
-		cardRepo:    cardRepo,
-		txRepo:      txRepo,
-		balanceRepo: balanceRepo,
+		cardRepo:     cardRepo,
+		txRepo:       txRepo,
+		balanceRepo:  balanceRepo,
+		movementRepo: movementRepo,
 	}
 }
 
@@ -63,7 +67,7 @@ func (a PurchaseVoucherTransaction) Execute(input dto.AuthorizePurchaseRequest) 
 	}
 
 	//TODO: O balance do voucher é outra tabela
-	balance, err := a.balanceRepo.GetBalance(c.AccountID)
+	balance, err := a.balanceRepo.GetBalanceVoucher(c.AccountID)
 	if err != nil {
 		_, _ = persistSerializedTransaction(a.txRepo, tx, "96")
 		return PurchaseOutput{}, fmt.Errorf("loading balance: %w", err)
@@ -91,8 +95,36 @@ func (a PurchaseVoucherTransaction) Execute(input dto.AuthorizePurchaseRequest) 
 	balanceAmount := remainingBalance.Cents()
 	approvedOutput.AuthorizationID = &authorizationID
 	approvedOutput.BalanceAmount = &balanceAmount
-	//TODO: Disparar o evento de debitar o valor daconta.
+
+	if err := a.movementRepo.InsertDebitVoucherMovement(
+		c.AccountID,
+		authorizationID,
+		cardPurchaseMovementTypeID,
+		amount.ToFloat(),
+		buildCardVoucherPurchaseMovementDescription(input),
+		c.ID,
+		c.CardID,
+		input.OriginalIso8583.RequestMcc,
+	); err != nil {
+		return PurchaseOutput{}, fmt.Errorf("inserting card voucher debit movement: %w", err)
+	}
 	//TODO: disparar evento de SMS para o cliente. Transação aprovado
 
 	return approvedOutput, nil
+}
+
+func buildCardVoucherPurchaseMovementDescription(input dto.AuthorizePurchaseRequest) string {
+	location := ""
+	if input.OriginalIso8583.RequestCardAcceptorNameLocation != nil {
+		location = strings.TrimSpace(*input.OriginalIso8583.RequestCardAcceptorNameLocation)
+	}
+	if location == "" && input.Establishment.Name != nil {
+		location = strings.TrimSpace(*input.Establishment.Name)
+	}
+
+	if location == "" {
+		return "COMPRA VOUCHER | ESTABELECIMENTO NÃO INFORMADO"
+	}
+
+	return "COMPRA VOUCHER | " + strings.ToUpper(location)
 }

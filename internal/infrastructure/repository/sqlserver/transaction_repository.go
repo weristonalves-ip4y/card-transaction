@@ -25,7 +25,9 @@ func (r TransactionRepository) ExistsByIdentifier(identifier string) (bool, erro
 		SELECT TOP 1 1
 		FROM transaction_purchases
 		WHERE purchase_id = @identifier
-	`
+		      OR withdrawal_id = @identifier OR 
+		      transfer_id = @identifier
+		`
 
 	var found int
 	err := r.db.QueryRowContext(context.Background(), query, sql.Named("identifier", identifier)).Scan(&found)

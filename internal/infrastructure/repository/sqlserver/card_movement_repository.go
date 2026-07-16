@@ -55,3 +55,34 @@ func (r CardMovementRepository) InsertDebitMovement(accountID, originID int64, m
 
 	return nil
 }
+
+func (r CardMovementRepository) InsertCreditMovement(accountID, originID int64, movementTypeID int, amount float64, description string) error {
+	amountNegative := -amount
+	query := fmt.Sprintf(`EXEC [%s]
+		@accountId = @accountId,
+		@masterId = @masterId,
+		@originId = @originId,
+		@mvmntTypeId = @mvmntTypeId,
+		@taxMvmntTypeId = @taxMvmntTypeId,
+		@value = @value,
+		@tax_value = @tax_value,
+		@description = @description`, r.procedureName)
+
+	_, err := r.db.ExecContext(
+		context.Background(),
+		query,
+		sql.Named("accountId", accountID),
+		sql.Named("masterId", cardMovementMasterID),
+		sql.Named("originId", originID),
+		sql.Named("mvmntTypeId", movementTypeID),
+		sql.Named("taxMvmntTypeId", cardMovementTaxTypeID),
+		sql.Named("value", amountNegative),
+		sql.Named("tax_value", cardMovementTaxValueCts),
+		sql.Named("description", description),
+	)
+	if err != nil {
+		return fmt.Errorf("inserting card movement for origin %d: %w", originID, err)
+	}
+
+	return nil
+}
