@@ -12,7 +12,7 @@ type PurchaseVoucherTransaction struct {
 	txRepo       TransactionRepository
 	balanceRepo  BalanceVoucherRepository
 	movementRepo CardVoucherMovementRepository
-	txManager    PurchaseTransactionManager
+	txManager    TransactionManager
 }
 
 func NewPurchaseVoucherTransaction(
@@ -20,9 +20,9 @@ func NewPurchaseVoucherTransaction(
 	txRepo TransactionRepository,
 	balanceRepo BalanceVoucherRepository,
 	movementRepo CardVoucherMovementRepository,
-	txManager ...PurchaseTransactionManager,
+	txManager ...TransactionManager,
 ) PurchaseVoucherTransaction {
-	var resolvedTxManager PurchaseTransactionManager
+	var resolvedTxManager TransactionManager
 	if len(txManager) > 0 {
 		resolvedTxManager = txManager[0]
 	}
@@ -100,7 +100,7 @@ func (a PurchaseVoucherTransaction) Execute(input dto.AuthorizePurchaseRequest) 
 	movementDescription := buildCardVoucherPurchaseMovementDescription(input)
 
 	if a.txManager != nil {
-		err = a.txManager.WithinTransaction(func(ctx PurchaseTransactionalContext) error {
+		err = a.txManager.WithinTransaction(func(ctx TransactionalContext) error {
 			authID, txErr := persistSerializedTransaction(ctx.TransactionRepository(), tx, approvedOutput.Code)
 			if txErr != nil {
 				return txErr

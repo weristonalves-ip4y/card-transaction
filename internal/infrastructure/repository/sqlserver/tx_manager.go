@@ -8,7 +8,7 @@ import (
 	"card-transaction/internal/application/usecase"
 )
 
-type PurchaseTxManager struct {
+type SQLServerTransactionManager struct {
 	db                       *sql.DB
 	cardMovementProcedure    string
 	voucherMovementProcedure string
@@ -32,25 +32,25 @@ func (c purchaseTxContext) CardVoucherMovementRepository() usecase.CardVoucherMo
 	return c.cardVoucherMovementRepo
 }
 
-func NewPurchaseTxManager(db *sql.DB) (PurchaseTxManager, error) {
+func NewSQLServerTransactionManager(db *sql.DB) (SQLServerTransactionManager, error) {
 	cardMovementRepo, err := NewCardMovementRepository(db)
 	if err != nil {
-		return PurchaseTxManager{}, fmt.Errorf("building card movement repository for tx manager: %w", err)
+		return SQLServerTransactionManager{}, fmt.Errorf("building card movement repository for tx manager: %w", err)
 	}
 
 	voucherMovementRepo, err := NewCardVoucherMovementRepository(db)
 	if err != nil {
-		return PurchaseTxManager{}, fmt.Errorf("building card voucher movement repository for tx manager: %w", err)
+		return SQLServerTransactionManager{}, fmt.Errorf("building card voucher movement repository for tx manager: %w", err)
 	}
 
-	return PurchaseTxManager{
+	return SQLServerTransactionManager{
 		db:                       db,
 		cardMovementProcedure:    cardMovementRepo.procedureName,
 		voucherMovementProcedure: voucherMovementRepo.procedureName,
 	}, nil
 }
 
-func (m PurchaseTxManager) WithinTransaction(fn func(ctx usecase.PurchaseTransactionalContext) error) error {
+func (m SQLServerTransactionManager) WithinTransaction(fn func(ctx usecase.TransactionalContext) error) error {
 	tx, err := m.db.BeginTx(context.Background(), nil)
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)

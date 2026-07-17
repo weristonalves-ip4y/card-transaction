@@ -43,12 +43,12 @@ func NewHTTPHandler() http.Handler {
 	if err != nil {
 		log.Panicf("building sql card voucher movement repository: %v", err)
 	}
-	purchaseTxManager, err := sqlserver.NewPurchaseTxManager(db)
+	transactionManager, err := sqlserver.NewSQLServerTransactionManager(db)
 	if err != nil {
 		log.Panicf("building sql purchase tx manager: %v", err)
 	}
 
-	authorizeUseCase := usecase.NewPurchaseTransaction(cardRepo, txRepo, balanceRepo, balanceVoucherRepo, movementRepo, movementVoucherRepo, purchaseTxManager)
+	authorizeUseCase := usecase.NewPurchaseTransaction(cardRepo, txRepo, balanceRepo, balanceVoucherRepo, movementRepo, movementVoucherRepo, transactionManager)
 	authorizeController := controller.NewAuthorizeController(authorizeUseCase)
 	systemStatusController := controller.NewSystemStatusController(controller.DBCheckFunc(func(ctx context.Context) error {
 		if err := db.PingContext(ctx); err != nil {

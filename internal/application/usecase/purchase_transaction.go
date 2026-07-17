@@ -38,14 +38,14 @@ type CardVoucherMovementRepository interface {
 	InsertDebitVoucherMovement(accountID, originID int64, movementTypeID int, amount float64, description string, cardID, cardExternalID, cardPurchaseMcc interface{}) error
 }
 
-type PurchaseTransactionalContext interface {
+type TransactionalContext interface {
 	TransactionRepository() TransactionRepository
 	CardMovementRepository() CardMovementRepository
 	CardVoucherMovementRepository() CardVoucherMovementRepository
 }
 
-type PurchaseTransactionManager interface {
-	WithinTransaction(fn func(ctx PurchaseTransactionalContext) error) error
+type TransactionManager interface {
+	WithinTransaction(fn func(ctx TransactionalContext) error) error
 }
 
 type PurchaseOutput struct {
@@ -69,7 +69,7 @@ func NewPurchaseTransaction(
 	balanceVoucherRepo BalanceVoucherRepository,
 	movementRepo CardMovementRepository,
 	movementVoucherRepo CardVoucherMovementRepository,
-	txManager PurchaseTransactionManager,
+	txManager TransactionManager,
 ) PurchaseTransaction {
 	return PurchaseTransaction{
 		cardUseCase:    NewPurchaseCardTransaction(cardRepo, txRepo, balanceRepo, movementRepo, txManager),
