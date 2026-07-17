@@ -12,6 +12,7 @@ type PurchaseVoucherTransaction struct {
 	txRepo       TransactionRepository
 	balanceRepo  BalanceVoucherRepository
 	movementRepo CardVoucherMovementRepository
+	txManager    PurchaseTransactionManager
 }
 
 func NewPurchaseVoucherTransaction(
@@ -19,12 +20,19 @@ func NewPurchaseVoucherTransaction(
 	txRepo TransactionRepository,
 	balanceRepo BalanceVoucherRepository,
 	movementRepo CardVoucherMovementRepository,
+	txManager ...PurchaseTransactionManager,
 ) PurchaseVoucherTransaction {
+	var resolvedTxManager PurchaseTransactionManager
+	if len(txManager) > 0 {
+		resolvedTxManager = txManager[0]
+	}
+
 	return PurchaseVoucherTransaction{
 		cardRepo:     cardRepo,
 		txRepo:       txRepo,
 		balanceRepo:  balanceRepo,
 		movementRepo: movementRepo,
+		txManager:    resolvedTxManager,
 	}
 }
 
@@ -87,27 +95,64 @@ func (a PurchaseVoucherTransaction) Execute(input dto.AuthorizePurchaseRequest) 
 	}
 
 	approvedOutput := approvePurchase()
-	authorizationID, err := persistSerializedTransaction(a.txRepo, tx, approvedOutput.Code)
+	var authorizationID int64
+	persistenceCompleted := false
+	movementDescription := buildCardVoucherPurchaseMovementDescription(input)
+
+	if a.txManager != nil {
+		err = a.txManager.WithinTransaction(func(ctx PurchaseTransactionalContext) error {
+			authID, txErr := persistSerializedTransaction(ctx.TransactionRepository(), tx, approvedOutput.Code)
+			if txErr != nil {
+				return txErr
+			}
+			persistenceCompleted = true
+
+			if txErr := ctx.CardVoucherMovementRepository().InsertDebitVoucherMovement(
+				c.AccountID,
+				authID,
+				cardPurchaseMovementTypeID,
+				amount.ToFloat(),
+				movementDescription,
+				c.ID,
+				c.CardID,
+				input.OriginalIso8583.RequestMcc,
+			); txErr != nil {
+				return fmt.Errorf("inserting card voucher debit movement: %w", txErr)
+			}
+
+			authorizationID = authID
+			return nil
+		})
+	} else {
+		authorizationID, err = persistSerializedTransaction(a.txRepo, tx, approvedOutput.Code)
+		if err == nil {
+			persistenceCompleted = true
+			err = a.movementRepo.InsertDebitVoucherMovement(
+				c.AccountID,
+				authorizationID,
+				cardPurchaseMovementTypeID,
+				amount.ToFloat(),
+				movementDescription,
+				c.ID,
+				c.CardID,
+				input.OriginalIso8583.RequestMcc,
+			)
+			if err != nil {
+				err = fmt.Errorf("inserting card voucher debit movement: %w", err)
+			}
+		}
+	}
+
 	if err != nil {
-		return rejectPurchaseByCode("96"), nil
+		if !persistenceCompleted {
+			return rejectPurchaseByCode("96"), nil
+		}
+		return PurchaseOutput{}, err
 	}
 
 	balanceAmount := remainingBalance.Cents()
 	approvedOutput.AuthorizationID = &authorizationID
 	approvedOutput.BalanceAmount = &balanceAmount
-
-	if err := a.movementRepo.InsertDebitVoucherMovement(
-		c.AccountID,
-		authorizationID,
-		cardPurchaseMovementTypeID,
-		amount.ToFloat(),
-		buildCardVoucherPurchaseMovementDescription(input),
-		c.ID,
-		c.CardID,
-		input.OriginalIso8583.RequestMcc,
-	); err != nil {
-		return PurchaseOutput{}, fmt.Errorf("inserting card voucher debit movement: %w", err)
-	}
 	//TODO: disparar evento de SMS para o cliente. Transação aprovado
 
 	return approvedOutput, nil

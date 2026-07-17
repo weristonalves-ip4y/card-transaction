@@ -13,10 +13,14 @@ import (
 )
 
 type TransactionRepository struct {
-	db *sql.DB
+	db queryExecutor
 }
 
 func NewTransactionRepository(db *sql.DB) TransactionRepository {
+	return newTransactionRepositoryWithExecutor(db)
+}
+
+func newTransactionRepositoryWithExecutor(db queryExecutor) TransactionRepository {
 	return TransactionRepository{db: db}
 }
 

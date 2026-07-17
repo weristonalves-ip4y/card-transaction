@@ -13,17 +13,21 @@ const (
 )
 
 type CardVoucherMovementRepository struct {
-	db            *sql.DB
+	db            queryExecutor
 	procedureName string
 }
 
 func NewCardVoucherMovementRepository(db *sql.DB) (CardVoucherMovementRepository, error) {
-	procedureName := envOrDefault("DB_CARD_MOVEMENT_PROCEDURE", "sp_insert_movement_voucher")
+	procedureName := envOrDefault("DB_CARD_VOUCHER_MOVEMENT_PROCEDURE", "sp_insert_movement_voucher")
 	if !isSafeIdentifier(procedureName) {
-		return CardVoucherMovementRepository{}, fmt.Errorf("invalid DB_CARD_MOVEMENT_PROCEDURE: %q", procedureName)
+		return CardVoucherMovementRepository{}, fmt.Errorf("invalid DB_CARD_VOUCHER_MOVEMENT_PROCEDURE: %q", procedureName)
 	}
 
-	return CardVoucherMovementRepository{db: db, procedureName: procedureName}, nil
+	return newCardVoucherMovementRepositoryWithExecutor(db, procedureName), nil
+}
+
+func newCardVoucherMovementRepositoryWithExecutor(db queryExecutor, procedureName string) CardVoucherMovementRepository {
+	return CardVoucherMovementRepository{db: db, procedureName: procedureName}
 }
 
 /**
@@ -62,7 +66,7 @@ func (r CardVoucherMovementRepository) InsertDebitVoucherMovement(accountID, ori
 		sql.Named("cardPurchaseMcc", cardPurchaseMcc),
 	)
 	if err != nil {
-		return fmt.Errorf("inserting card movement for origin %d: %w", originID, err)
+		return fmt.Errorf("inserting card voucher movement for origin %d: %w", originID, err)
 	}
 
 	return nil
@@ -95,7 +99,7 @@ func (r CardVoucherMovementRepository) InsertCreditVoucherMovement(accountID, or
 		sql.Named("cardPurchaseMcc", cardPurchaseMcc),
 	)
 	if err != nil {
-		return fmt.Errorf("inserting card movement for origin %d: %w", originID, err)
+		return fmt.Errorf("inserting card voucher movement for origin %d: %w", originID, err)
 	}
 
 	return nil

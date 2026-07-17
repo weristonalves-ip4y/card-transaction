@@ -38,6 +38,16 @@ type CardVoucherMovementRepository interface {
 	InsertDebitVoucherMovement(accountID, originID int64, movementTypeID int, amount float64, description string, cardID, cardExternalID, cardPurchaseMcc interface{}) error
 }
 
+type PurchaseTransactionalContext interface {
+	TransactionRepository() TransactionRepository
+	CardMovementRepository() CardMovementRepository
+	CardVoucherMovementRepository() CardVoucherMovementRepository
+}
+
+type PurchaseTransactionManager interface {
+	WithinTransaction(fn func(ctx PurchaseTransactionalContext) error) error
+}
+
 type PurchaseOutput struct {
 	Approved        bool
 	Code            string
@@ -59,10 +69,11 @@ func NewPurchaseTransaction(
 	balanceVoucherRepo BalanceVoucherRepository,
 	movementRepo CardMovementRepository,
 	movementVoucherRepo CardVoucherMovementRepository,
+	txManager PurchaseTransactionManager,
 ) PurchaseTransaction {
 	return PurchaseTransaction{
-		cardUseCase:    NewPurchaseCardTransaction(cardRepo, txRepo, balanceRepo, movementRepo),
-		voucherUseCase: NewPurchaseVoucherTransaction(cardRepo, txRepo, balanceVoucherRepo, movementVoucherRepo),
+		cardUseCase:    NewPurchaseCardTransaction(cardRepo, txRepo, balanceRepo, movementRepo, txManager),
+		voucherUseCase: NewPurchaseVoucherTransaction(cardRepo, txRepo, balanceVoucherRepo, movementVoucherRepo, txManager),
 	}
 }
 

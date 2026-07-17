@@ -48,7 +48,7 @@ type CardInput struct {
 	PaysmartID string `json:"paysmart_id"`
 	IssuerID   string `json:"issuer_id"`
 	Pan        string `json:"pan"`
-	PanSeq     string `json:"panseq	"`
+	PanSeq     string `json:"panseq"`
 	Bin        string `json:"bin"`
 }
 

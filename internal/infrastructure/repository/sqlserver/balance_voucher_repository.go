@@ -14,25 +14,28 @@ type BalanceVoucherRepository struct {
 	amountField  string
 }
 
-func NewBalanceVoucherRepository(db *sql.DB) (BalanceRepository, error) {
-	functionName := envOrDefault("DB_BALANCE_FUNCTION", envOrDefault("DB_BALANCE_TABLE", "fn_get_voucher_balance"))
-	amountField := envOrDefault("DB_BALANCE_AMOUNT_COLUMN", "balance")
+func NewBalanceVoucherRepository(db *sql.DB) (BalanceVoucherRepository, error) {
+	functionName := envOrDefault(
+		"DB_VOUCHER_BALANCE_FUNCTION",
+		envOrDefault("DB_BALANCE_FUNCTION", envOrDefault("DB_VOUCHER_BALANCE_TABLE", envOrDefault("DB_BALANCE_TABLE", "fn_get_voucher_balance"))),
+	)
+	amountField := envOrDefault("DB_VOUCHER_BALANCE_AMOUNT_COLUMN", envOrDefault("DB_BALANCE_AMOUNT_COLUMN", "balance"))
 
 	if !isSafeIdentifier(functionName) {
-		return BalanceRepository{}, fmt.Errorf("invalid DB_BALANCE_FUNCTION: %q", functionName)
+		return BalanceVoucherRepository{}, fmt.Errorf("invalid DB_VOUCHER_BALANCE_FUNCTION: %q", functionName)
 	}
 	if !isSafeIdentifier(amountField) {
-		return BalanceRepository{}, fmt.Errorf("invalid DB_BALANCE_AMOUNT_COLUMN: %q", amountField)
+		return BalanceVoucherRepository{}, fmt.Errorf("invalid DB_VOUCHER_BALANCE_AMOUNT_COLUMN: %q", amountField)
 	}
 
-	return BalanceRepository{
+	return BalanceVoucherRepository{
 		db:           db,
 		functionName: functionName,
 		amountField:  amountField,
 	}, nil
 }
 
-func (r BalanceRepository) GetBalanceVoucher(accountID int64) (vo.Money, error) {
+func (r BalanceVoucherRepository) GetBalanceVoucher(accountID int64) (vo.Money, error) {
 	query := fmt.Sprintf("SELECT TOP 1 %s FROM %s(@accountID)", r.amountField, r.functionName)
 
 	var rawBalance any

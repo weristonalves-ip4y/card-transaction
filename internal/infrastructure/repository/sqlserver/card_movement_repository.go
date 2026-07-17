@@ -13,7 +13,7 @@ const (
 )
 
 type CardMovementRepository struct {
-	db            *sql.DB
+	db            queryExecutor
 	procedureName string
 }
 
@@ -23,7 +23,11 @@ func NewCardMovementRepository(db *sql.DB) (CardMovementRepository, error) {
 		return CardMovementRepository{}, fmt.Errorf("invalid DB_CARD_MOVEMENT_PROCEDURE: %q", procedureName)
 	}
 
-	return CardMovementRepository{db: db, procedureName: procedureName}, nil
+	return newCardMovementRepositoryWithExecutor(db, procedureName), nil
+}
+
+func newCardMovementRepositoryWithExecutor(db queryExecutor, procedureName string) CardMovementRepository {
+	return CardMovementRepository{db: db, procedureName: procedureName}
 }
 
 func (r CardMovementRepository) InsertDebitMovement(accountID, originID int64, movementTypeID int, amount float64, description string) error {
