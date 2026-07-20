@@ -3,6 +3,7 @@ package purchase
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"card-transaction/internal/application/decision"
 	"card-transaction/internal/application/dto"
@@ -178,19 +179,23 @@ func (a PurchaseCardTransaction) Execute(input dto.AuthorizePurchaseRequest) (Pu
 	balanceAmount := remainingBalance.Cents()
 	approvedOutput.AuthorizationID = &authorizationID
 	approvedOutput.BalanceAmount = &balanceAmount
-	notifyApprovedPurchaseSMS(a.dispatcher, "111", "cartao", amount, remainingBalance)
+
+	r, err := a.cardRepo.FindOwnerPhoneByCardID(c.ID)
+	if err != nil {
+		return PurchaseOutput{}, fmt.Errorf("finding owner phone by card ID: %w", err)
+	}
+
+	location := input.ResolveEstablishmentLocation()
+	transactionTimestamp := time.Now()
+
+	notifyApprovedPurchaseSMS(a.dispatcher, r, amount, location,
+		c.FourLastDigits, formatSMSDateTime(transactionTimestamp))
 
 	return approvedOutput, nil
 }
 
 func buildCardPurchaseMovementDescription(input dto.AuthorizePurchaseRequest) string {
-	location := ""
-	if input.OriginalIso8583.RequestCardAcceptorNameLocation != nil {
-		location = strings.TrimSpace(*input.OriginalIso8583.RequestCardAcceptorNameLocation)
-	}
-	if location == "" && input.Establishment.Name != nil {
-		location = strings.TrimSpace(*input.Establishment.Name)
-	}
+	location := input.ResolveEstablishmentLocation()
 
 	if location == "" {
 		return "COMPRA CARTÃO"

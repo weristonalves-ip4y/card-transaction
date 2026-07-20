@@ -15,6 +15,7 @@ type ValidationResult interface {
 
 type CardRepository interface {
 	FindByPaysmartID(paysmartID string) (card.Card, error)
+	FindOwnerPhoneByCardID(cardID int64) (string, error)
 }
 
 type TransactionRepository interface {

@@ -27,10 +27,11 @@ func NewProvider(client *http.Client) Provider {
 
 type Payload struct {
 	From           string
-	Phone          string
-	Message        string
+	To             string
+	Msg            string
 	Schedule       *string
 	CallbackOption string
+	id             string
 	AggregateId    string
 	FlashSms       bool
 }
@@ -43,14 +44,16 @@ func (p *Provider) Send(ctx context.Context, phone, message string) error {
 
 	data := Payload{
 		From:           from,
-		Phone:          phone,
-		Message:        message,
+		To:             phone,
+		Msg:            message,
+		Schedule:       nil,
 		CallbackOption: "NONE",
-		AggregateId:    uuid.New().String(),
+		id:             uuid.New().String(),
+		AggregateId:    "001",
 		FlashSms:       false,
 	}
 
-	jsonData, err := json.Marshal(data)
+	jsonData, err := json.Marshal(map[string]interface{}{"sendSmsRequest": data})
 	if err != nil {
 		fmt.Println("Erro ao converter para JSON:", err)
 		return err
@@ -65,11 +68,13 @@ func (p *Provider) Send(ctx context.Context, phone, message string) error {
 
 	// Define os headers
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Authorization", "Basic "+token)
+	req.Header.Set("Accept", "application/json")
 
 	// Envia a requisição
 	resp, err := p.client.Do(req)
 	if err != nil {
+		fmt.Println("Numero:", phone)
 		fmt.Println("Erro ao enviar requisição:", err)
 		return err
 	}
@@ -83,6 +88,7 @@ func (p *Provider) Send(ctx context.Context, phone, message string) error {
 	}
 
 	if resp.StatusCode != http.StatusOK {
+		fmt.Println("Numero:", phone)
 		fmt.Println("Erro na resposta:", string(body))
 		return fmt.Errorf("erro na resposta: %s", string(body))
 	}

@@ -23,14 +23,16 @@ func (r CardRepository) FindByPaysmartID(paysmartID string) (card.Card, error) {
 
 	if strings.HasPrefix(paysmartID, "vcrt") {
 		query = `
-				SELECT TOP 1
+			SELECT TOP 1
 				pc.id,
 				pc.account_id,
 				pc.uuid,
+				pc.card_id,
 				pc.card_status_id,
 				pc.card_monthly_limit,
 				pc.card_check_limit,
 				pc.ps_product_code,
+				pc.card_last_digit,
 				pc.created_at,
 				pc.updated_at,
 				pc.deleted_at
@@ -55,6 +57,7 @@ func (r CardRepository) FindByPaysmartID(paysmartID string) (card.Card, error) {
 			card_monthly_limit,
 			card_check_limit,
 			ps_product_code,
+			card_last_digit,
 			created_at,
 			updated_at,
 			deleted_at
@@ -82,6 +85,7 @@ func (r CardRepository) FindByPaysmartID(paysmartID string) (card.Card, error) {
 		&monthlyLimitCents,
 		&checkLimit,
 		&productCode,
+		&c.FourLastDigits,
 		&c.CreatedAt,
 		&c.UpdatedAt,
 		&c.DeletedAt,
@@ -111,4 +115,31 @@ func (r CardRepository) FindByPaysmartID(paysmartID string) (card.Card, error) {
 	c.PsProductCode = productCode.String
 
 	return c, nil
+}
+
+func (r CardRepository) FindOwnerPhoneByCardID(cardID int64) (string, error) {
+	var phoneDDD, phoneNumber sql.NullString
+
+	query := `
+		SELECT TOP 1
+		rc.owner_phone_ddd, rc.owner_phone_number 
+		FROM request_cards rc 
+		LEFT JOIN paysmart_cards pc 
+		ON rc.id = pc.request_card_id 
+		WHERE pc.id = @cardID
+	`
+
+	err := r.db.QueryRowContext(context.Background(), query, sql.Named("cardID", cardID)).Scan(&phoneDDD, &phoneNumber)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", nil
+		}
+		return "", fmt.Errorf("querying owner phone by card id: %w", err)
+	}
+
+	if !phoneDDD.Valid || !phoneNumber.Valid {
+		return "", nil
+	}
+
+	return "55" + phoneDDD.String + phoneNumber.String, nil
 }

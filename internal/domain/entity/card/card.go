@@ -22,6 +22,7 @@ type Card struct {
 	CardStatusID     int
 	CardMonthlyLimit vo.Money
 	CardCheckLimit   bool
+	FourLastDigits   string
 	PsProductCode    string
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
