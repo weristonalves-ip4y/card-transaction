@@ -7,6 +7,21 @@ import (
 	"card-transaction/internal/domain/vo"
 )
 
+type voucherMovementRepoSpy struct{}
+
+func (s *voucherMovementRepoSpy) InsertDebitVoucherMovement(
+	accountID,
+	originID int64,
+	movementTypeID int,
+	amount float64,
+	description string,
+	cardID,
+	cardExternalID,
+	cardPurchaseMcc interface{},
+) error {
+	return nil
+}
+
 type voucherTxRepoSpy struct {
 	existsByIdentifier bool
 	saveCalls          int

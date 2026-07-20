@@ -8,6 +8,7 @@ import (
 
 	"card-transaction/internal/application/usecase"
 	"card-transaction/internal/infrastructure/database"
+	smsnotification "card-transaction/internal/infrastructure/notification/sms"
 	"card-transaction/internal/infrastructure/repository/sqlserver"
 	"card-transaction/internal/interfaces/http/controller"
 	"card-transaction/internal/interfaces/http/router"
@@ -47,8 +48,11 @@ func NewHTTPHandler() http.Handler {
 	if err != nil {
 		log.Panicf("building sql purchase tx manager: %v", err)
 	}
+	smsProvider := smsnotification.NewProvider(nil)
+	smsService := smsnotification.NewService(smsProvider)
+	smsDispatcher := smsnotification.NewAsyncDispatcher(smsService)
 
-	authorizeUseCase := usecase.NewPurchaseTransaction(cardRepo, txRepo, balanceRepo, balanceVoucherRepo, movementRepo, movementVoucherRepo, transactionManager)
+	authorizeUseCase := usecase.NewPurchaseTransaction(cardRepo, txRepo, balanceRepo, balanceVoucherRepo, movementRepo, movementVoucherRepo, transactionManager, smsDispatcher)
 	authorizeController := controller.NewAuthorizeController(authorizeUseCase)
 	systemStatusController := controller.NewSystemStatusController(controller.DBCheckFunc(func(ctx context.Context) error {
 		if err := db.PingContext(ctx); err != nil {

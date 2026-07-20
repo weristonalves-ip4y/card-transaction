@@ -3,6 +3,7 @@ package usecase
 import (
 	"card-transaction/internal/application/dto"
 	"card-transaction/internal/domain/entity/card"
+	domainnotification "card-transaction/internal/domain/notification"
 	"card-transaction/internal/domain/vo"
 )
 
@@ -70,10 +71,24 @@ func NewPurchaseTransaction(
 	movementRepo CardMovementRepository,
 	movementVoucherRepo CardVoucherMovementRepository,
 	txManager TransactionManager,
+	dispatchers ...domainnotification.Dispatcher,
 ) PurchaseTransaction {
+	var dispatcher domainnotification.Dispatcher
+	if len(dispatchers) > 0 {
+		dispatcher = dispatchers[0]
+	}
+
+	cardUseCase := NewPurchaseCardTransaction(cardRepo, txRepo, balanceRepo, movementRepo, txManager)
+	voucherUseCase := NewPurchaseVoucherTransaction(cardRepo, txRepo, balanceVoucherRepo, movementVoucherRepo, txManager)
+
+	if dispatcher != nil {
+		cardUseCase = cardUseCase.WithNotificationDispatcher(dispatcher)
+		voucherUseCase = voucherUseCase.WithNotificationDispatcher(dispatcher)
+	}
+
 	return PurchaseTransaction{
-		cardUseCase:    NewPurchaseCardTransaction(cardRepo, txRepo, balanceRepo, movementRepo, txManager),
-		voucherUseCase: NewPurchaseVoucherTransaction(cardRepo, txRepo, balanceVoucherRepo, movementVoucherRepo, txManager),
+		cardUseCase:    cardUseCase,
+		voucherUseCase: voucherUseCase,
 	}
 }
 

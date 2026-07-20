@@ -3,6 +3,7 @@ package usecase
 import (
 	"card-transaction/internal/application/dto"
 	"card-transaction/internal/domain/entity/card"
+	domainnotification "card-transaction/internal/domain/notification"
 	"fmt"
 	"strings"
 )
@@ -13,6 +14,7 @@ type PurchaseVoucherTransaction struct {
 	balanceRepo  BalanceVoucherRepository
 	movementRepo CardVoucherMovementRepository
 	txManager    TransactionManager
+	dispatcher   domainnotification.Dispatcher
 }
 
 func NewPurchaseVoucherTransaction(
@@ -34,6 +36,11 @@ func NewPurchaseVoucherTransaction(
 		movementRepo: movementRepo,
 		txManager:    resolvedTxManager,
 	}
+}
+
+func (a PurchaseVoucherTransaction) WithNotificationDispatcher(dispatcher domainnotification.Dispatcher) PurchaseVoucherTransaction {
+	a.dispatcher = dispatcher
+	return a
 }
 
 func (a PurchaseVoucherTransaction) Execute(input dto.AuthorizePurchaseRequest) (PurchaseOutput, error) {
@@ -153,7 +160,7 @@ func (a PurchaseVoucherTransaction) Execute(input dto.AuthorizePurchaseRequest) 
 	balanceAmount := remainingBalance.Cents()
 	approvedOutput.AuthorizationID = &authorizationID
 	approvedOutput.BalanceAmount = &balanceAmount
-	//TODO: disparar evento de SMS para o cliente. Transação aprovado
+	notifyApprovedPurchaseSMS(a.dispatcher, "111", "voucher", amount, remainingBalance)
 
 	return approvedOutput, nil
 }

@@ -8,6 +8,7 @@ import (
 	"card-transaction/internal/application/dto"
 	"card-transaction/internal/domain/entity/card"
 	"card-transaction/internal/domain/entity/transaction"
+	domainnotification "card-transaction/internal/domain/notification"
 	"card-transaction/internal/domain/vo"
 
 	"github.com/google/uuid"
@@ -21,6 +22,7 @@ type PurchaseCardTransaction struct {
 	balanceRepo  BalanceRepository
 	movementRepo CardMovementRepository
 	txManager    TransactionManager
+	dispatcher   domainnotification.Dispatcher
 }
 
 func NewPurchaseCardTransaction(
@@ -42,6 +44,11 @@ func NewPurchaseCardTransaction(
 		movementRepo: movementRepo,
 		txManager:    resolvedTxManager,
 	}
+}
+
+func (a PurchaseCardTransaction) WithNotificationDispatcher(dispatcher domainnotification.Dispatcher) PurchaseCardTransaction {
+	a.dispatcher = dispatcher
+	return a
 }
 
 func (a PurchaseCardTransaction) Execute(input dto.AuthorizePurchaseRequest) (PurchaseOutput, error) {
@@ -171,8 +178,7 @@ func (a PurchaseCardTransaction) Execute(input dto.AuthorizePurchaseRequest) (Pu
 	balanceAmount := remainingBalance.Cents()
 	approvedOutput.AuthorizationID = &authorizationID
 	approvedOutput.BalanceAmount = &balanceAmount
-
-	//TODO: disparar evento de SMS para o cliente. Transação aprovado
+	notifyApprovedPurchaseSMS(a.dispatcher, "111", "cartao", amount, remainingBalance)
 
 	return approvedOutput, nil
 }

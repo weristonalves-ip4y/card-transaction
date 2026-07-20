@@ -1,7 +1,9 @@
 package usecase
 
 import (
+	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"card-transaction/internal/application/dto"
@@ -23,6 +25,18 @@ type movementRepoSpy struct {
 	lastAmountCents    float64
 	lastDescription    string
 	err                error
+}
+
+type notificationDispatcherSpy struct {
+	calls       int
+	lastPhone   string
+	lastMessage string
+}
+
+func (s *notificationDispatcherSpy) SendSMS(ctx context.Context, phone, message string) {
+	s.calls++
+	s.lastPhone = phone
+	s.lastMessage = message
 }
 
 func (s *movementRepoSpy) InsertDebitMovement(accountID, originID int64, movementTypeID int, amount float64, description string) error {
@@ -165,8 +179,8 @@ func TestPurchaseCardTransactionExecuteApprovedCallsDebitMovement(t *testing.T) 
 		t.Fatalf("expected movement type %d, got %d", cardPurchaseMovementTypeID, movementRepo.lastMovementTypeID)
 	}
 
-	if movementRepo.lastAmountCents != 1000 {
-		t.Fatalf("expected movement amount 1000, got %d", movementRepo.lastAmountCents)
+	if movementRepo.lastAmountCents != 10 {
+		t.Fatalf("expected movement amount 10.00, got %.2f", movementRepo.lastAmountCents)
 	}
 
 	if movementRepo.lastDescription != "COMPRA CARTÃO | MERCEARIA CENTRO" {
@@ -202,6 +216,42 @@ func TestPurchaseCardTransactionExecuteMovementFailureKeepsApprovedPersistence(t
 
 	if movementRepo.calls != 1 {
 		t.Fatalf("expected 1 movement call, got %d", movementRepo.calls)
+	}
+}
+
+func TestPurchaseCardTransactionExecuteApprovedDispatchesSMSWhenPhoneProvided(t *testing.T) {
+	t.Parallel()
+
+	txRepo := &txRepoSpy{existsByIdentifier: false}
+	movementRepo := &movementRepoSpy{}
+	dispatcherSpy := &notificationDispatcherSpy{}
+
+	useCase := NewPurchaseCardTransaction(cardRepoApprovedStub{}, txRepo, balanceRepoApprovedStub{}, movementRepo).
+		WithNotificationDispatcher(dispatcherSpy)
+
+	input := validAuthorizePurchaseRequest()
+	phone := "5511999999999"
+	input.Phone = &phone
+
+	output, err := useCase.Execute(input)
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+
+	if !output.Approved {
+		t.Fatalf("expected approved output")
+	}
+
+	if dispatcherSpy.calls != 1 {
+		t.Fatalf("expected 1 sms dispatch call, got %d", dispatcherSpy.calls)
+	}
+
+	if dispatcherSpy.lastPhone != phone {
+		t.Fatalf("expected sms phone %s, got %s", phone, dispatcherSpy.lastPhone)
+	}
+
+	if !strings.Contains(dispatcherSpy.lastMessage, "Compra CARTAO aprovada") {
+		t.Fatalf("expected sms message to contain purchase approval content, got %s", dispatcherSpy.lastMessage)
 	}
 }
 
