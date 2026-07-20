@@ -1,4 +1,4 @@
-package purchase
+package notification
 
 import (
 	"context"
@@ -49,7 +49,18 @@ func buildApprovedPurchaseSMSMessage(establishmentName string, amount vo.Money, 
 	)
 }
 
-func formatSMSDateTime(transactionTime time.Time) string {
+func NotifyApprovedPurchaseSMS(
+	dispatcher domainnotification.Dispatcher,
+	phone string,
+	amount vo.Money,
+	establishmentName string,
+	cardFinalDigits string,
+	transactionDate string,
+) {
+	notifyApprovedPurchaseSMS(dispatcher, phone, amount, establishmentName, cardFinalDigits, transactionDate)
+}
+
+func FormatSMSDateTime(transactionTime time.Time) string {
 	// In Go, this is a formatting layout template, not a fixed date value.
 	return transactionTime.Format(smsDateTimeLayout)
 }

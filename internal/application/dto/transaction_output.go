@@ -1,14 +1,14 @@
 package dto
 
-type PurchaseOutput struct {
+type TransactionOutput struct {
 	StatusCode int
 	Data       map[string]any
 }
 
-func PurchaseOutputFromAuthorizationCode(code string, message string) PurchaseOutput {
-	spec, ok := purchaseOutputSpecs[code]
+func TransactionOutputFromAuthorizationCode(code string, message string) TransactionOutput {
+	spec, ok := TransactionOutputSpecs[code]
 	if !ok {
-		spec = purchaseOutputSpecs["96"]
+		spec = TransactionOutputSpecs["96"]
 		code = "96"
 	}
 
@@ -44,10 +44,10 @@ func PurchaseOutputFromAuthorizationCode(code string, message string) PurchaseOu
 		data["cashbackOnlyPartialAmountApproved"] = nil
 	}
 
-	return PurchaseOutput{StatusCode: spec.HTTPStatus, Data: data}
+	return TransactionOutput{StatusCode: spec.HTTPStatus, Data: data}
 }
 
-func PurchaseOutputFromIncomingDenial(code string, message string) PurchaseOutput {
+func TransactionOutputFromIncomingDenial(code string, message string) TransactionOutput {
 	if code == "" {
 		code = "96"
 	}
@@ -55,7 +55,7 @@ func PurchaseOutputFromIncomingDenial(code string, message string) PurchaseOutpu
 		message = "Negacao recebida do autorizador."
 	}
 
-	return PurchaseOutput{
+	return TransactionOutput{
 		StatusCode: 499,
 		Data: map[string]any{
 			"message":            message,
@@ -64,7 +64,7 @@ func PurchaseOutputFromIncomingDenial(code string, message string) PurchaseOutpu
 	}
 }
 
-type purchaseOutputSpec struct {
+type TransactionOutputSpec struct {
 	HTTPStatus             int
 	Code                   int
 	Message                string
@@ -74,7 +74,7 @@ type purchaseOutputSpec struct {
 	IncludePurchaseFields  bool
 }
 
-var purchaseOutputSpecs = map[string]purchaseOutputSpec{
+var TransactionOutputSpecs = map[string]TransactionOutputSpec{
 	"00": {
 		HTTPStatus:             200,
 		Code:                   0,

@@ -24,7 +24,7 @@ func newTransactionRepositoryWithExecutor(db queryExecutor) TransactionRepositor
 	return TransactionRepository{db: db}
 }
 
-func (r TransactionRepository) ExistsByIdentifier(identifier string) (bool, error) {
+func (r TransactionRepository) ExistsByIdentifier(identifier *string) (bool, error) {
 	const query = `
 		SELECT TOP 1 1
 		FROM transaction_purchases

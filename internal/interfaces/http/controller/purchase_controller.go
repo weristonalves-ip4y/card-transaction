@@ -19,7 +19,7 @@ import (
 **/
 
 type Authorizer interface {
-	Execute(input dto.AuthorizePurchaseRequest) (usecase.PurchaseOutput, error)
+	Execute(input dto.AuthorizeRequest) (usecase.TransactionOutput, error)
 }
 
 type AuthorizeController struct {
@@ -55,7 +55,7 @@ func (c AuthorizeController) Handle(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("purchase request received: method=%s path=%s body=%s", r.Method, r.URL.Path, sanitizePayloadForLog(body))
 
-	var req dto.AuthorizePurchaseRequest
+	var req dto.AuthorizeRequest
 
 	decoder := json.NewDecoder(bytes.NewReader(body))
 
@@ -77,7 +77,7 @@ func (c AuthorizeController) Handle(w http.ResponseWriter, r *http.Request) {
 
 	if req.Authorization.Code != "00" {
 		log.Printf("purchase request denied before usecase: method=%s path=%s purchase_id=%s account_id=%s authorization_code=%s", r.Method, r.URL.Path, req.PurchaseID, req.AccountID, req.Authorization.Code)
-		response := dto.PurchaseOutputFromIncomingDenial(req.Authorization.Code, req.Authorization.Description)
+		response := dto.TransactionOutputFromIncomingDenial(req.Authorization.Code, req.Authorization.Description)
 		writeJSON(w, response.StatusCode, response.Data)
 		return
 	}
@@ -86,14 +86,14 @@ func (c AuthorizeController) Handle(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("purchase request usecase error: method=%s path=%s purchase_id=%s account_id=%s err=%v", r.Method, r.URL.Path, req.PurchaseID, req.AccountID, err)
 		resolved := decision.Resolve("96")
-		response := dto.PurchaseOutputFromAuthorizationCode(resolved.Code, resolved.Message)
+		response := dto.TransactionOutputFromAuthorizationCode(resolved.Code, resolved.Message)
 		writeJSON(w, response.StatusCode, response.Data)
 		return
 	}
 
 	log.Printf("purchase request completed: method=%s path=%s purchase_id=%s account_id=%s approved=%t code=%s status=%d", r.Method, r.URL.Path, req.PurchaseID, req.AccountID, output.Approved, output.Code, output.Status)
 
-	response := dto.PurchaseOutputFromAuthorizationCode(output.Code, output.Message)
+	response := dto.TransactionOutputFromAuthorizationCode(output.Code, output.Message)
 	if output.AuthorizationID != nil {
 		response.Data["authorization_id"] = *output.AuthorizationID
 	}

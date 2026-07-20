@@ -9,7 +9,7 @@ func TestAuthorizePurchaseRequestResolveEstablishmentLocationPrefersISO8583(t *t
 
 	isoLocation := "  MERCEARIA CENTRAL  "
 	establishmentName := "PADARIA BAIRRO"
-	request := AuthorizePurchaseRequest{
+	request := AuthorizeRequest{
 		OriginalIso8583: OriginalIso8583{RequestCardAcceptorNameLocation: &isoLocation},
 		Establishment:   EstablishmentInput{Name: &establishmentName},
 	}
@@ -24,7 +24,7 @@ func TestAuthorizePurchaseRequestResolveEstablishmentLocationFallbackEstablishme
 	t.Parallel()
 
 	establishmentName := "  PADARIA BAIRRO  "
-	request := AuthorizePurchaseRequest{
+	request := AuthorizeRequest{
 		OriginalIso8583: OriginalIso8583{},
 		Establishment:   EstablishmentInput{Name: &establishmentName},
 	}

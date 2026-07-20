@@ -19,7 +19,7 @@ type CardRepository interface {
 }
 
 type TransactionRepository interface {
-	ExistsByIdentifier(identifier string) (bool, error)
+	ExistsByIdentifier(identifier *string) (bool, error)
 	GetMonthlySum(cardID string) (vo.Money, error)
 	SaveSerialized(payload map[string]any) (int64, error)
 }
@@ -50,7 +50,7 @@ type TransactionManager interface {
 	WithinTransaction(fn func(ctx TransactionalContext) error) error
 }
 
-type PurchaseOutput struct {
+type TransactionOutput struct {
 	Approved        bool
 	Code            string
 	Message         string
@@ -93,7 +93,7 @@ func NewPurchaseTransaction(
 	}
 }
 
-func (a PurchaseTransaction) Execute(input dto.AuthorizePurchaseRequest) (PurchaseOutput, error) {
+func (a PurchaseTransaction) Execute(input dto.AuthorizeRequest) (TransactionOutput, error) {
 	if input.PsProductCode == "011401" {
 		return a.voucherUseCase.Execute(input)
 	} else {

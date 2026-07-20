@@ -6,7 +6,7 @@ import (
 
 // ResolveEstablishmentLocation centralizes merchant location resolution
 // from ISO8583 first, then falls back to establishment name.
-func (r AuthorizePurchaseRequest) ResolveEstablishmentLocation() string {
+func (r AuthorizeRequest) ResolveEstablishmentLocation() string {
 	if location := trimPointerString(r.OriginalIso8583.RequestCardAcceptorNameLocation); location != "" {
 		return location
 	}

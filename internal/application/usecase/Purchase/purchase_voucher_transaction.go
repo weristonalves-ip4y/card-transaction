@@ -2,6 +2,7 @@ package purchase
 
 import (
 	"card-transaction/internal/application/dto"
+	appnotification "card-transaction/internal/application/notification"
 	"card-transaction/internal/domain/entity/card"
 	domainnotification "card-transaction/internal/domain/notification"
 	"fmt"
@@ -44,16 +45,16 @@ func (a PurchaseVoucherTransaction) WithNotificationDispatcher(dispatcher domain
 	return a
 }
 
-func (a PurchaseVoucherTransaction) Execute(input dto.AuthorizePurchaseRequest) (PurchaseOutput, error) {
+func (a PurchaseVoucherTransaction) Execute(input dto.AuthorizeRequest) (TransactionOutput, error) {
 	tx, err := newPurchaseTransactionFromInput(input)
 	if err != nil {
-		return PurchaseOutput{}, err
+		return TransactionOutput{}, err
 	}
 
 	isDuplicate, err := a.txRepo.ExistsByIdentifier(input.PurchaseID)
 	if err != nil {
 		_, _ = persistSerializedTransaction(a.txRepo, tx, "96")
-		return PurchaseOutput{}, fmt.Errorf("checking duplicate: %w", err)
+		return TransactionOutput{}, fmt.Errorf("checking duplicate: %w", err)
 	}
 	if isDuplicate {
 		output := rejectPurchaseByCode("07")
@@ -64,7 +65,7 @@ func (a PurchaseVoucherTransaction) Execute(input dto.AuthorizePurchaseRequest) 
 	c, err := a.cardRepo.FindByPaysmartID(input.Card.PaysmartID)
 	if err != nil {
 		_, _ = persistSerializedTransaction(a.txRepo, tx, "96")
-		return PurchaseOutput{}, fmt.Errorf("loading card: %w", err)
+		return TransactionOutput{}, fmt.Errorf("loading card: %w", err)
 	}
 
 	if result := card.ValidateCard(c); !result.Approved {
@@ -86,7 +87,7 @@ func (a PurchaseVoucherTransaction) Execute(input dto.AuthorizePurchaseRequest) 
 	balance, err := a.balanceRepo.GetBalanceVoucher(c.AccountID)
 	if err != nil {
 		_, _ = persistSerializedTransaction(a.txRepo, tx, "96")
-		return PurchaseOutput{}, fmt.Errorf("loading balance: %w", err)
+		return TransactionOutput{}, fmt.Errorf("loading balance: %w", err)
 	}
 
 	if result := tx.ValidateBalance(balance); !result.Approved {
@@ -99,7 +100,7 @@ func (a PurchaseVoucherTransaction) Execute(input dto.AuthorizePurchaseRequest) 
 	remainingBalance, err := balance.Subtract(amount)
 	if err != nil {
 		_, _ = persistSerializedTransaction(a.txRepo, tx, "96")
-		return PurchaseOutput{}, fmt.Errorf("subtracting approved amount from voucher balance: %w", err)
+		return TransactionOutput{}, fmt.Errorf("subtracting approved amount from voucher balance: %w", err)
 	}
 
 	approvedOutput := approvePurchase()
@@ -155,7 +156,7 @@ func (a PurchaseVoucherTransaction) Execute(input dto.AuthorizePurchaseRequest) 
 		if !persistenceCompleted {
 			return rejectPurchaseByCode("96"), nil
 		}
-		return PurchaseOutput{}, err
+		return TransactionOutput{}, err
 	}
 
 	balanceAmount := remainingBalance.Cents()
@@ -164,16 +165,16 @@ func (a PurchaseVoucherTransaction) Execute(input dto.AuthorizePurchaseRequest) 
 
 	r, err := a.cardRepo.FindOwnerPhoneByCardID(c.ID)
 	if err != nil {
-		return PurchaseOutput{}, fmt.Errorf("finding owner phone by card ID: %w", err)
+		return TransactionOutput{}, fmt.Errorf("finding owner phone by card ID: %w", err)
 	}
 	location := input.ResolveEstablishmentLocation()
 	transactionTimestamp := time.Now()
-	notifyApprovedPurchaseSMS(a.dispatcher, r, amount, location,
-		c.FourLastDigits, formatSMSDateTime(transactionTimestamp))
+	appnotification.NotifyApprovedPurchaseSMS(a.dispatcher, r, amount, location,
+		c.FourLastDigits, appnotification.FormatSMSDateTime(transactionTimestamp))
 	return approvedOutput, nil
 }
 
-func buildCardVoucherPurchaseMovementDescription(input dto.AuthorizePurchaseRequest) string {
+func buildCardVoucherPurchaseMovementDescription(input dto.AuthorizeRequest) string {
 	location := input.ResolveEstablishmentLocation()
 
 	if location == "" {

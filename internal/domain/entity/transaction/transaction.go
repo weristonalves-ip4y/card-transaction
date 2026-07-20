@@ -130,7 +130,7 @@ type AuthorizationResponse struct {
 
 type CardData struct {
 	PaysmartID string
-	IssuerID   string
+	IssuerID   *string
 	Pan        string
 	PanSeq     string
 	Bin        string
@@ -160,7 +160,8 @@ type EstablishmentData struct {
 }
 
 type AuthorizeData struct {
-	PurchaseID                   string
+	PurchaseID                   *string
+	WithdrawalID                 *string
 	PsProductCode                string
 	PsProductName                string
 	ProductType                  string
@@ -211,15 +212,15 @@ type Transaction struct {
 }
 
 func New(
-	identifier string,
+	identifier *string,
 	txType Type,
 	productType ProductType,
 	value vo.Money,
 	forceAccept bool,
 ) (Transaction, error) {
 	return Transaction{
-		ID:          identifier,
-		Identifier:  identifier,
+		ID:          *identifier,
+		Identifier:  *identifier,
 		Type:        txType,
 		ProductType: productType,
 		Value:       value,
@@ -260,10 +261,11 @@ func (t Transaction) WithPersistenceBase(uuid string, cardExternalID string, pur
 	t.UUID = uuid
 	t.Data.Card.PaysmartID = cardExternalID
 	if purchaseID != nil {
-		t.Data.PurchaseID = *purchaseID
+		t.Data.PurchaseID = purchaseID
 	}
 	if withdrawalID != nil {
 		t.Type = TypeWithdrawal
+		t.Data.WithdrawalID = withdrawalID
 	}
 	return t
 }
@@ -282,11 +284,15 @@ func (t Transaction) WithAuthorizationResponse(response AuthorizationResponse) T
 
 func (t Transaction) BuildISOResponse(responseCode string) Transaction {
 	request := t.Data.OriginalISO8583
+	responseMTI := "0110"
+	if t.Type == TypeWithdrawal {
+		responseMTI = "0210"
+	}
 
 	t.Response = AuthorizationResponse{
 		Code: responseCode,
 		ISO: ISOResponse{
-			MTI:                                 "0110", //TODO: Quando for WithDrawal, o MTI deve ser 0210
+			MTI:                                 responseMTI,
 			CardNumber:                          stringOrEmpty(request.DE002),
 			ProcessingCode:                      stringOrEmpty(request.DE003),
 			TransactionAmountLocal:              t.Data.Amount.Total.Cents(),
@@ -315,6 +321,7 @@ func (t Transaction) ToPersistenceMap() map[string]any {
 	req := t.Data.OriginalISO8583
 	res := t.Response.ISO
 	purchaseID := t.Data.PurchaseID
+	withdrawalID := t.Data.WithdrawalID
 
 	return map[string]any{
 		"uuid":                    t.UUID,
@@ -322,7 +329,7 @@ func (t Transaction) ToPersistenceMap() map[string]any {
 		"card_id":                 t.CardID,
 		"card_external_id":        t.Data.Card.PaysmartID,
 		"purchase_id":             purchaseID,
-		"withdrawal_id":           nil,
+		"withdrawal_id":           withdrawalID,
 		"transfer_id":             nil,
 		"request_mti":             req.MTI,
 		"request_card_number":     stringOrNil(req.DE002),

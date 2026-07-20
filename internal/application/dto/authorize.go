@@ -2,8 +2,9 @@ package dto
 
 import "fmt"
 
-type AuthorizePurchaseRequest struct {
-	PurchaseID                   string                 `json:"purchase_id"`
+type AuthorizeRequest struct {
+	PurchaseID                   *string                `json:"purchase_id"`
+	WithdrawalID                 *string                `json:"withdrawal_id"`
 	AccountID                    string                 `json:"account_id"`
 	PsProductCode                string                 `json:"psProductCode"`
 	PsProductName                string                 `json:"psProductName"`
@@ -45,11 +46,11 @@ type EstablishmentInput struct {
 }
 
 type CardInput struct {
-	PaysmartID string `json:"paysmart_id"`
-	IssuerID   string `json:"issuer_id"`
-	Pan        string `json:"pan"`
-	PanSeq     string `json:"panseq"`
-	Bin        string `json:"bin"`
+	PaysmartID string  `json:"paysmart_id"`
+	IssuerID   *string `json:"issuer_id"`
+	Pan        string  `json:"pan"`
+	PanSeq     string  `json:"panseq"`
+	Bin        string  `json:"bin"`
 }
 
 type TotalAmountInput struct {
@@ -148,9 +149,10 @@ type AuthorizeResponse struct {
 	Description string `json:"description"`
 }
 
-func (r AuthorizePurchaseRequest) Validate() error {
-	if r.PurchaseID == "" {
-		return fmt.Errorf("purchase_id is required")
+func (r AuthorizeRequest) Validate() error {
+	if (r.PurchaseID == nil || *r.PurchaseID == "") &&
+		(r.WithdrawalID == nil || *r.WithdrawalID == "") {
+		return fmt.Errorf("purchase_id or withdrawal_id is required")
 	}
 	if r.AccountID == "" {
 		return fmt.Errorf("account_id is required")
@@ -175,9 +177,6 @@ func (r AuthorizePurchaseRequest) Validate() error {
 	}
 	if r.Card.PaysmartID == "" {
 		return fmt.Errorf("card.paysmart_id is required")
-	}
-	if r.Card.IssuerID == "" {
-		return fmt.Errorf("card.issuer_id is required")
 	}
 	if r.Card.Pan == "" {
 		return fmt.Errorf("card.pan is required")

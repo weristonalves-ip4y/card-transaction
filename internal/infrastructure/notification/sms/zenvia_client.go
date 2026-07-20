@@ -74,7 +74,6 @@ func (p *Provider) Send(ctx context.Context, phone, message string) error {
 	// Envia a requisição
 	resp, err := p.client.Do(req)
 	if err != nil {
-		fmt.Println("Numero:", phone)
 		fmt.Println("Erro ao enviar requisição:", err)
 		return err
 	}
@@ -88,7 +87,6 @@ func (p *Provider) Send(ctx context.Context, phone, message string) error {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		fmt.Println("Numero:", phone)
 		fmt.Println("Erro na resposta:", string(body))
 		return fmt.Errorf("erro na resposta: %s", string(body))
 	}

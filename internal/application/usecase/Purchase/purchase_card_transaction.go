@@ -7,6 +7,7 @@ import (
 
 	"card-transaction/internal/application/decision"
 	"card-transaction/internal/application/dto"
+	appnotification "card-transaction/internal/application/notification"
 	"card-transaction/internal/domain/entity/card"
 	"card-transaction/internal/domain/entity/transaction"
 	domainnotification "card-transaction/internal/domain/notification"
@@ -52,16 +53,16 @@ func (a PurchaseCardTransaction) WithNotificationDispatcher(dispatcher domainnot
 	return a
 }
 
-func (a PurchaseCardTransaction) Execute(input dto.AuthorizePurchaseRequest) (PurchaseOutput, error) {
+func (a PurchaseCardTransaction) Execute(input dto.AuthorizeRequest) (TransactionOutput, error) {
 	tx, err := newPurchaseTransactionFromInput(input)
 	if err != nil {
-		return PurchaseOutput{}, err
+		return TransactionOutput{}, err
 	}
 
 	isDuplicate, err := a.txRepo.ExistsByIdentifier(input.PurchaseID)
 	if err != nil {
 		_, _ = persistSerializedTransaction(a.txRepo, tx, "96")
-		return PurchaseOutput{}, fmt.Errorf("checking duplicate: %w", err)
+		return TransactionOutput{}, fmt.Errorf("checking duplicate: %w", err)
 	}
 	if isDuplicate {
 		output := rejectPurchaseByCode("07")
@@ -72,7 +73,7 @@ func (a PurchaseCardTransaction) Execute(input dto.AuthorizePurchaseRequest) (Pu
 	c, err := a.cardRepo.FindByPaysmartID(input.Card.PaysmartID)
 	if err != nil {
 		_, _ = persistSerializedTransaction(a.txRepo, tx, "96")
-		return PurchaseOutput{}, fmt.Errorf("loading card: %w", err)
+		return TransactionOutput{}, fmt.Errorf("loading card: %w", err)
 	}
 
 	if result := card.ValidateCard(c); !result.Approved {
@@ -93,13 +94,13 @@ func (a PurchaseCardTransaction) Execute(input dto.AuthorizePurchaseRequest) (Pu
 	monthlySum, err := a.txRepo.GetMonthlySum(c.CardID)
 	if err != nil {
 		_, _ = persistSerializedTransaction(a.txRepo, tx, "96")
-		return PurchaseOutput{}, fmt.Errorf("loading monthly sum: %w", err)
+		return TransactionOutput{}, fmt.Errorf("loading monthly sum: %w", err)
 	}
 
 	amount, err := vo.NewFromCents(input.TotalAmount.TotalAmount)
 	if err != nil {
 		_, _ = persistSerializedTransaction(a.txRepo, tx, "96")
-		return PurchaseOutput{}, fmt.Errorf("invalid transaction amount: %w", err)
+		return TransactionOutput{}, fmt.Errorf("invalid transaction amount: %w", err)
 	}
 
 	if card.MonthsLimitExceeded(c, monthlySum, amount, input.ForceAccept) {
@@ -111,7 +112,7 @@ func (a PurchaseCardTransaction) Execute(input dto.AuthorizePurchaseRequest) (Pu
 	balance, err := a.balanceRepo.GetBalance(c.AccountID)
 	if err != nil {
 		_, _ = persistSerializedTransaction(a.txRepo, tx, "96")
-		return PurchaseOutput{}, fmt.Errorf("loading balance: %w", err)
+		return TransactionOutput{}, fmt.Errorf("loading balance: %w", err)
 	}
 
 	if result := tx.ValidateBalance(balance); !result.Approved {
@@ -123,7 +124,7 @@ func (a PurchaseCardTransaction) Execute(input dto.AuthorizePurchaseRequest) (Pu
 	remainingBalance, err := balance.Subtract(amount)
 	if err != nil {
 		_, _ = persistSerializedTransaction(a.txRepo, tx, "96")
-		return PurchaseOutput{}, fmt.Errorf("subtracting approved amount from balance: %w", err)
+		return TransactionOutput{}, fmt.Errorf("subtracting approved amount from balance: %w", err)
 	}
 
 	approvedOutput := approvePurchase()
@@ -173,7 +174,7 @@ func (a PurchaseCardTransaction) Execute(input dto.AuthorizePurchaseRequest) (Pu
 		if !persistenceCompleted {
 			return rejectPurchaseByCode("96"), nil
 		}
-		return PurchaseOutput{}, err
+		return TransactionOutput{}, err
 	}
 
 	balanceAmount := remainingBalance.Cents()
@@ -182,19 +183,19 @@ func (a PurchaseCardTransaction) Execute(input dto.AuthorizePurchaseRequest) (Pu
 
 	r, err := a.cardRepo.FindOwnerPhoneByCardID(c.ID)
 	if err != nil {
-		return PurchaseOutput{}, fmt.Errorf("finding owner phone by card ID: %w", err)
+		return TransactionOutput{}, fmt.Errorf("finding owner phone by card ID: %w", err)
 	}
 
 	location := input.ResolveEstablishmentLocation()
 	transactionTimestamp := time.Now()
 
-	notifyApprovedPurchaseSMS(a.dispatcher, r, amount, location,
-		c.FourLastDigits, formatSMSDateTime(transactionTimestamp))
+	appnotification.NotifyApprovedPurchaseSMS(a.dispatcher, r, amount, location,
+		c.FourLastDigits, appnotification.FormatSMSDateTime(transactionTimestamp))
 
 	return approvedOutput, nil
 }
 
-func buildCardPurchaseMovementDescription(input dto.AuthorizePurchaseRequest) string {
+func buildCardPurchaseMovementDescription(input dto.AuthorizeRequest) string {
 	location := input.ResolveEstablishmentLocation()
 
 	if location == "" {
@@ -204,7 +205,7 @@ func buildCardPurchaseMovementDescription(input dto.AuthorizePurchaseRequest) st
 	return "COMPRA CARTÃO | " + strings.ToUpper(location)
 }
 
-func newPurchaseTransactionFromInput(input dto.AuthorizePurchaseRequest) (transaction.Transaction, error) {
+func newPurchaseTransactionFromInput(input dto.AuthorizeRequest) (transaction.Transaction, error) {
 	value, err := vo.NewFromCents(input.TotalAmount.TotalAmount)
 	if err != nil {
 		return transaction.Transaction{}, fmt.Errorf("invalid transaction value: %w", err)
@@ -350,7 +351,7 @@ func newPurchaseTransactionFromInput(input dto.AuthorizePurchaseRequest) (transa
 	})
 
 	tx = tx.WithPersistenceUUID(uuid.NewString())
-	tx = tx.WithPersistenceBase(tx.UUID, input.Card.PaysmartID, &input.PurchaseID, nil)
+	tx = tx.WithPersistenceBase(tx.UUID, input.Card.PaysmartID, input.PurchaseID, nil)
 
 	return tx, nil
 }
@@ -360,12 +361,12 @@ func persistSerializedTransaction(repo TransactionRepository, tx transaction.Tra
 	return repo.SaveSerialized(tx.ToPersistenceMap())
 }
 
-func approvePurchase() PurchaseOutput {
+func approvePurchase() TransactionOutput {
 	resolved := decision.Resolve("00")
-	return PurchaseOutput{Approved: true, Code: "00", Message: resolved.Message, Status: resolved.HTTPStatus}
+	return TransactionOutput{Approved: true, Code: "00", Message: resolved.Message, Status: resolved.HTTPStatus}
 }
 
-func rejectPurchaseByCode(code string) PurchaseOutput {
+func rejectPurchaseByCode(code string) TransactionOutput {
 	resolved := decision.Resolve(code)
-	return PurchaseOutput{Approved: false, Code: resolved.Code, Message: resolved.Message, Status: resolved.HTTPStatus}
+	return TransactionOutput{Approved: false, Code: resolved.Code, Message: resolved.Message, Status: resolved.HTTPStatus}
 }

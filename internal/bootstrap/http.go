@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	purchase "card-transaction/internal/application/usecase/Purchase"
+	withdrawal "card-transaction/internal/application/usecase/Withdrawal"
 	"card-transaction/internal/infrastructure/database"
 	smsnotification "card-transaction/internal/infrastructure/notification/sms"
 	"card-transaction/internal/infrastructure/repository/sqlserver"
@@ -52,8 +53,13 @@ func NewHTTPHandler() http.Handler {
 	smsService := smsnotification.NewService(smsProvider)
 	smsDispatcher := smsnotification.NewAsyncDispatcher(smsService)
 
+	//purchase
 	authorizeUseCase := purchase.NewPurchaseTransaction(cardRepo, txRepo, balanceRepo, balanceVoucherRepo, movementRepo, movementVoucherRepo, transactionManager, smsDispatcher)
 	authorizeController := controller.NewAuthorizeController(authorizeUseCase)
+	//withdrawal
+	withdrawalUseCase := withdrawal.NewWithdrawalTransaction(cardRepo, txRepo, balanceRepo, movementRepo, transactionManager, smsDispatcher)
+	withdrawalController := controller.NewWithdrawalController(withdrawalUseCase)
+	//system status
 	systemStatusController := controller.NewSystemStatusController(controller.DBCheckFunc(func(ctx context.Context) error {
 		if err := db.PingContext(ctx); err != nil {
 			return fmt.Errorf("pinging db: %w", err)
@@ -62,5 +68,5 @@ func NewHTTPHandler() http.Handler {
 		return nil
 	}))
 
-	return router.New(systemStatusController, authorizeController)
+	return router.New(systemStatusController, authorizeController, withdrawalController)
 }
