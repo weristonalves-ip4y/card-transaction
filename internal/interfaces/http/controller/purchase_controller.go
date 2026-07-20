@@ -10,7 +10,7 @@ import (
 
 	"card-transaction/internal/application/decision"
 	"card-transaction/internal/application/dto"
-	"card-transaction/internal/application/usecase"
+	usecase "card-transaction/internal/application/usecase/Purchase"
 )
 
 /**

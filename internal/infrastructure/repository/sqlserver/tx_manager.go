@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"card-transaction/internal/application/usecase"
+	usecase "card-transaction/internal/application/usecase/Purchase"
 )
 
 type SQLServerTransactionManager struct {

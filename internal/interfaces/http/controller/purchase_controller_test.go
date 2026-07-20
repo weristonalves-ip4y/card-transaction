@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"card-transaction/internal/application/dto"
-	"card-transaction/internal/application/usecase"
+	usecase "card-transaction/internal/application/usecase/Purchase"
 )
 
 type authorizerStub struct {

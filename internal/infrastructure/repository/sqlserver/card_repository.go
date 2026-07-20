@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"card-transaction/internal/domain/entity/card"
 	"card-transaction/internal/domain/vo"
@@ -18,7 +19,33 @@ func NewCardRepository(db *sql.DB) CardRepository {
 }
 
 func (r CardRepository) FindByPaysmartID(paysmartID string) (card.Card, error) {
-	const query = `
+	var query string
+
+	if strings.HasPrefix(paysmartID, "vcrt") {
+		query = `
+				SELECT TOP 1
+				pc.id,
+				pc.account_id,
+				pc.uuid,
+				pc.card_status_id,
+				pc.card_monthly_limit,
+				pc.card_check_limit,
+				pc.ps_product_code,
+				pc.created_at,
+				pc.updated_at,
+				pc.deleted_at
+			FROM
+				paysmart_card_virtuals pcv
+			LEFT JOIN paysmart_cards pc on
+				pcv.paysmart_card_id = pc.id
+			WHERE
+			pcv.v_card_id = @paysmartID
+			AND pcv.card_status_id = 4
+			ORDER BY pc.id DESC
+				`
+		query = query // to avoid unused variable error
+	} else {
+		query = `
 		SELECT TOP 1
 			id,
 			account_id,
@@ -33,8 +60,10 @@ func (r CardRepository) FindByPaysmartID(paysmartID string) (card.Card, error) {
 			deleted_at
 		FROM paysmart_cards
 		WHERE card_id = @paysmartID
+		AND card_status_id = 4
 		ORDER BY id DESC
 	`
+	}
 
 	var (
 		c                 card.Card

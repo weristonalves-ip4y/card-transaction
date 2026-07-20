@@ -1,4 +1,4 @@
-package usecase
+package purchase
 
 import (
 	"card-transaction/internal/application/dto"
